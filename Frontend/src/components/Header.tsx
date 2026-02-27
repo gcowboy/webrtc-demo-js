@@ -35,6 +35,9 @@ const Header = () => {
         <RegionSelect />
         <PreCallDiagnosisButton />
         <CheckRegistrationButton />
+        <Link href="/settings" className="icon-btn" aria-label="Settings">
+          ⚙
+        </Link>
         {mode === 'sipjs' ? (
           <SipJsConnectionStatus />
         ) : mode === 'aiagent' ? null : (
