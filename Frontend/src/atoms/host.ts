@@ -1,11 +1,12 @@
 import { atom, useAtom } from 'jotai';
-const searchParams = new URLSearchParams(window.location.search);
 
-// const host = searchParams.get('host') ?? import.meta.env.VITE_RTC_HOST;
+// SSR-safe: default from env; client can override from URL via HostSync
+const getInitialHost = () =>
+  typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('host') ??
+      process.env.NEXT_PUBLIC_RTC_HOST ??
+      ''
+    : process.env.NEXT_PUBLIC_RTC_HOST ?? '';
 
-const host = () => {
-    return searchParams.get('host') ?? import.meta.env.VITE_RTC_HOST;
-}
-
-export const hostAtom = atom<string>(host);
+export const hostAtom = atom<string>(getInitialHost());
 export const useHost = () => useAtom(hostAtom);

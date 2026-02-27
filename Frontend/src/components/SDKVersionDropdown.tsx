@@ -97,9 +97,10 @@ const SDKVersionDropdown = () => {
 
   const onVersionChange = async (nextVersion: string) => {
     try {
+      const url = `https://esm.sh/@telnyx/webrtc@${nextVersion}`;
       const { TelnyxRTC } = await import(
-        /* @vite-ignore Dependency is loaded at runtime */
-        `https://esm.sh/@telnyx/webrtc@${nextVersion}`
+        /* webpackIgnore: true */
+        url
       );
 
       if (!TelnyxRTC || typeof TelnyxRTC !== 'function') {

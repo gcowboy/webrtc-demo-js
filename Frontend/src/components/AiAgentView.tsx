@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { IS_DEV_ENV } from '@/lib/vite';
+import { IS_DEV_ENV } from '@/lib/env';
 import {
   Card,
   CardContent,

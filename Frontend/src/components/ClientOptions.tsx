@@ -40,7 +40,7 @@ import { Switch } from './ui/switch';
 import { IClientOptionsDemo } from '@/lib/types';
 import { TurnServersFormField } from './TurnServersFormField';
 import { StunServersFormField } from './StunServersFormField';
-import { IS_DEV_ENV } from '@/lib/vite';
+import { IS_DEV_ENV } from '@/lib/env';
 
 const configureIceServers = (
   stunServers: IClientOptionsDemo['stunServers'],

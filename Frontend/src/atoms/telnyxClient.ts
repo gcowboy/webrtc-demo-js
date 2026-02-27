@@ -11,7 +11,7 @@ import { IClientOptionsDemo } from '@/lib/types';
 import { clientModeAtom } from './clientMode';
 import { simpleUserClientOptionsAtom } from './simpleUserClientOptions';
 import { splitCommaSeparatedList } from '@/lib/string';
-import { IS_DEV_ENV } from '@/lib/vite';
+import { IS_DEV_ENV } from '@/lib/env';
 
 type TelnyxRTCVersion = {
   version: string;

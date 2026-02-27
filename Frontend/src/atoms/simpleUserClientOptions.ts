@@ -1,8 +1,9 @@
 import { TelnyxDeviceConfig } from '@telnyx/rtc-sipjs-simple-user';
 import { useAtom } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
+import { getSipHost } from '@/lib/env';
 
-const sipHost = import.meta.env.VITE_SIP_HOST || 'sip.telnyx.com';
+const sipHost = getSipHost();
 
 const defaultSimpleUserOptions: TelnyxDeviceConfig = {
   host: sipHost,
