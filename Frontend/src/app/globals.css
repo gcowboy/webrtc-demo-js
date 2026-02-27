@@ -765,7 +765,6 @@ body {
 
 .auth-card,
 .settings-card {
-  width: min(100%, 520px);
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 16px;
@@ -782,6 +781,27 @@ body {
 
 .auth-card p {
   margin: 0 0 12px;
+  color: var(--muted);
+}
+
+.dashboard-auth-card {
+  min-width: 380px;
+  max-width: 420px;
+}
+
+.dashboard-auth-header {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.dashboard-auth-header h1 {
+  margin: 0 0 8px;
+  font-size: 1.5rem;
+}
+
+.dashboard-auth-header p {
+  margin: 0;
+  font-size: 14px;
   color: var(--muted);
 }
 
