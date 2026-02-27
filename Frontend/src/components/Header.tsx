@@ -44,10 +44,10 @@ const Header = () => {
           <ConnectionStatus />
         )}
         <SignedOut>
-          <Link className="top-link" href="/sign-in">
+          <Link className="top-link" href="/dashboard">
             Sign in
           </Link>
-          <Link className="top-link top-link-primary" href="/sign-up">
+          <Link className="top-link top-link-primary" href="/dashboard">
             Sign up
           </Link>
         </SignedOut>
