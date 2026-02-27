@@ -2,21 +2,23 @@ import { SignUp } from '@clerk/nextjs';
 
 export default function SignUpPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-      <SignUp
-        appearance={{
-          variables: {
-            colorPrimary: 'hsl(var(--primary))',
-            colorBackground: 'hsl(var(--card))',
-            colorText: 'hsl(var(--card-foreground))',
-            colorInputBackground: 'hsl(var(--background))',
-            colorInputText: 'hsl(var(--foreground))',
-            borderRadius: 'var(--radius)',
-          },
-        }}
-        afterSignUpUrl="/"
-        signInUrl="/sign-in"
-      />
-    </div>
+    <main className="auth-layout">
+      <section className="auth-card">
+        <SignUp
+          appearance={{
+            variables: {
+              colorPrimary: 'var(--blue)',
+              colorBackground: 'var(--surface)',
+              colorText: 'var(--text)',
+              colorInputBackground: 'var(--surface)',
+              colorInputText: 'var(--text)',
+              borderRadius: '10px',
+            },
+          }}
+          afterSignUpUrl="/"
+          signInUrl="/sign-in"
+        />
+      </section>
+    </main>
   );
 }

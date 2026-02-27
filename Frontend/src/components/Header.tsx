@@ -1,53 +1,63 @@
+'use client';
+
 import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
 import Link from 'next/link';
-import TelnyxLogo from '@/assets/TelnyxLogo';
 import ConnectionStatus from './ConnectionStatus';
 import SipJsConnectionStatus from './SipJsConnectionStatus';
 import PreCallDiagnosisButton from './PreCallDiagnosisButton';
 import CheckRegistrationButton from './CheckRegistrationButton';
 import SDKVersionDropdown from './SDKVersionDropdown';
-import H4 from './typography/H4';
 import RegionSelect from './RegionSelect';
 import { useClientMode } from '@/atoms/clientMode';
-import { Button } from './ui/button';
 
 const Header = () => {
   const [mode] = useClientMode();
 
   return (
-    <header className="border-b bg-background z-10">
-      <div className="p-4 mx-auto flex flex-wrap items-center gap-2">
-        <TelnyxLogo />
-        <H4>WebRTC Demo</H4>
+    <header className="topbar">
+      <div className="topbar-left">
+        <button type="button" className="icon-btn" aria-label="Main menu">
+          ☰
+        </button>
+        <div className="brand">
+          <span className="google-wordmark">Telnyx</span>
+          <span className="voice-wordmark">WebRTC Demo</span>
+        </div>
+      </div>
+
+      <div className="search-wrap">
+        <span className="search-icon">🔍</span>
+        <input type="text" placeholder="Search" aria-label="Search" />
+      </div>
+
+      <div className="topbar-right">
         <SDKVersionDropdown />
         <RegionSelect />
         <PreCallDiagnosisButton />
         <CheckRegistrationButton />
-        <div className="flex justify-end flex-1 py-1 items-center gap-2">
-          <SignedOut>
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/sign-in">Sign in</Link>
-            </Button>
-            <Button size="sm" asChild>
-              <Link href="/sign-up">Sign up</Link>
-            </Button>
-          </SignedOut>
-          <SignedIn>
-            <UserButton
-              afterSignOutUrl="/"
-              appearance={{
-                elements: {
-                  avatarBox: 'h-8 w-8',
-                },
-              }}
-            />
-          </SignedIn>
-          {mode === 'sipjs' ? (
-            <SipJsConnectionStatus />
-          ) : mode === 'aiagent' ? null : (
-            <ConnectionStatus />
-          )}
-        </div>
+        {mode === 'sipjs' ? (
+          <SipJsConnectionStatus />
+        ) : mode === 'aiagent' ? null : (
+          <ConnectionStatus />
+        )}
+        <SignedOut>
+          <Link className="top-link" href="/sign-in">
+            Sign in
+          </Link>
+          <Link className="top-link top-link-primary" href="/sign-up">
+            Sign up
+          </Link>
+        </SignedOut>
+        <SignedIn>
+          <UserButton
+            afterSignOutUrl="/"
+            appearance={{
+              elements: {
+                avatarBox: '!h-9 !w-9 rounded-full bg-[var(--blue)] text-white font-semibold',
+              },
+            }}
+          />
+        </SignedIn>
       </div>
     </header>
   );

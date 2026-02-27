@@ -1,15 +1,21 @@
 import { PropsWithChildren } from 'react';
 import { Call } from './Call';
 import Header from './Header';
+import Sidebar from './Sidebar';
 
 type Props = PropsWithChildren;
 
 const PageLayout = ({ children }: Props) => {
   return (
-    <div>
+    <div className="app-shell">
       <Header />
-      <Call />
-      <main className="h-full w-full overflow-y-auto">{children}</main>
+      <Sidebar />
+      <main className="main-content h-full w-full overflow-y-auto">
+        <div className="main-content-full">
+          <Call />
+          {children}
+        </div>
+      </main>
     </div>
   );
 };
