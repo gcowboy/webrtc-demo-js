@@ -8,31 +8,36 @@ import { Toaster } from '@/components/ui/toaster';
 import { Toaster as SonnerToaster } from 'sonner';
 
 const roboto = Roboto({ weight: ['400', '500', '700'], subsets: ['latin'] });
+const hasClerkPublishableKey = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
 export const metadata: Metadata = {
   title: 'WebRTC Demo',
   description: 'Telnyx WebRTC Demo',
 };
 
+function AppProviders({ children }: { children: React.ReactNode }) {
+  return (
+    <ThemeProvider defaultTheme="light">
+      <TooltipProvider>{children}</TooltipProvider>
+      <Toaster />
+      {/* Required for toast() from 'sonner' used in Dialer, ClientOptions, etc. */}
+      <SonnerToaster theme="light" position="top-center" />
+    </ThemeProvider>
+  );
+}
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const bodyContent = <AppProviders>{children}</AppProviders>;
+
   return (
-    <ClerkProvider>
-      <html lang="en">
-        <body className={roboto.className}>
-          <ThemeProvider defaultTheme="light">
-            <TooltipProvider>
-              {children}
-            </TooltipProvider>
-            <Toaster />
-            {/* Required for toast() from 'sonner' used in Dialer, ClientOptions, etc. */}
-            <SonnerToaster theme="light" position="top-center" />
-          </ThemeProvider>
-        </body>
-      </html>
-    </ClerkProvider>
+    <html lang="en">
+      <body className={roboto.className}>
+        {hasClerkPublishableKey ? <ClerkProvider>{bodyContent}</ClerkProvider> : bodyContent}
+      </body>
+    </html>
   );
 }
