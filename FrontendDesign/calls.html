@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Google Voice – Calls</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="icon-btn" aria-label="Main menu">☰</button>
+          <div class="brand">
+            <span class="google-wordmark">Google</span><span class="voice-wordmark">Voice</span>
+          </div>
+        </div>
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" placeholder="Search call history" aria-label="Search call history" />
+        </div>
+        <div class="topbar-right">
+          <button class="icon-btn" aria-label="Help">?</button>
+          <a class="icon-btn" href="settings.html" aria-label="Settings">⚙</a>
+          <a class="top-link" href="login.html">Log in</a>
+          <a class="top-link top-link-primary" href="signup.html">Sign up</a>
+          <button class="avatar" aria-label="Account">A</button>
+        </div>
+      </header>
+
+      <aside class="sidebar">
+        <button class="primary-btn">+ New call</button>
+        <nav>
+          <a class="nav-item" href="index.html"><span>💬</span><span class="nav-label">Messages</span><span class="badge">3</span></a>
+          <a class="nav-item active" href="calls.html"><span>📞</span><span class="nav-label">Calls</span><span class="badge">2</span></a>
+          <a class="nav-item" href="voicemail.html"><span>📼</span><span class="nav-label">Voicemail</span><span class="badge">1</span></a>
+          <a class="nav-item" href="#"><span>📨</span><span class="nav-label">Spam</span></a>
+          <a class="nav-item" href="subscription.html"><span>⭐</span><span class="nav-label">Subscription</span></a>
+          <a class="nav-item" href="purchase-number.html"><span>➕</span><span class="nav-label">Buy Number</span></a>
+          <a class="nav-item" href="#"><span>🗑</span><span class="nav-label">Trash</span></a>
+        </nav>
+      </aside>
+
+      <main class="main-content">
+        <section class="panel inbox-panel">
+          <div class="panel-header"><h1>Calls</h1><button class="panel-link">View all</button></div>
+          <div class="thread-list">
+            <article class="thread selected unread"><div class="thread-main"><h2>+1 (312) 555-0190</h2><p>Incoming call • 4 min 32 sec</p></div><div class="thread-meta"><time>11:04 AM</time><span class="badge">1</span></div></article>
+            <article class="thread"><div class="thread-main"><h2>+1 (415) 555-0133</h2><p>Outgoing call • 52 sec</p></div><div class="thread-meta"><time>Yesterday</time><span class="status-check">✓ Checked</span></div></article>
+            <article class="thread unread"><div class="thread-main"><h2>+1 (206) 555-0188</h2><p>Missed call</p></div><div class="thread-meta"><time>Mon</time><span class="badge">1</span></div></article>
+          </div>
+        </section>
+
+        <section class="panel conversation-panel">
+          <header class="conversation-header"><div><h2>Call details</h2><p>+1 (312) 555-0190</p></div><div class="conversation-actions"><button class="icon-btn" aria-label="Call back">📞</button><button class="icon-btn" aria-label="Info">ⓘ</button></div></header>
+          <div class="messages">
+            <div class="bubble received">Incoming call at 11:04 AM</div>
+            <div class="bubble sent">Duration: 4 minutes 32 seconds <span class="message-seen">✓</span></div>
+            <div class="bubble received">Call quality: HD</div>
+          </div>
+          <form class="composer"><input type="text" placeholder="Add a note to this call" aria-label="Add a note" /><button type="button" class="send-btn">Save</button></form>
+
+          <section class="dialpad" aria-label="Dialpad to call number">
+            <div class="dialpad-header">
+              <h3>Dialpad</h3>
+              <button type="button" class="panel-link">Clear</button>
+            </div>
+            <label class="dial-input-wrap">
+              <span class="sr-only">Phone number</span>
+              <input type="tel" value="+1 (650) 555-0123" aria-label="Phone number" />
+            </label>
+            <div class="dial-grid" role="group" aria-label="Dial digits">
+              <button type="button" class="dial-key">1</button>
+              <button type="button" class="dial-key">2<span>ABC</span></button>
+              <button type="button" class="dial-key">3<span>DEF</span></button>
+              <button type="button" class="dial-key">4<span>GHI</span></button>
+              <button type="button" class="dial-key">5<span>JKL</span></button>
+              <button type="button" class="dial-key">6<span>MNO</span></button>
+              <button type="button" class="dial-key">7<span>PQRS</span></button>
+              <button type="button" class="dial-key">8<span>TUV</span></button>
+              <button type="button" class="dial-key">9<span>WXYZ</span></button>
+              <button type="button" class="dial-key">*</button>
+              <button type="button" class="dial-key">0<span>+</span></button>
+              <button type="button" class="dial-key">#</button>
+            </div>
+            <button type="button" class="call-action">📞 Call</button>
+          </section>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

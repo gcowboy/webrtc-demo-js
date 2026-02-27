@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Google Voice – Settings</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="settings-layout">
+      <header class="settings-header">
+        <h1>Settings</h1>
+        <a class="panel-link" href="index.html">Back to Messages</a>
+      </header>
+
+      <section class="settings-card">
+        <h2>Active Number</h2>
+        <p class="auth-footer">Choose which purchased number is currently active for outbound calls and SMS.</p>
+
+        <form class="number-picker" aria-label="Select active purchased number">
+          <label class="number-option active">
+            <input type="radio" name="active-number" checked />
+            <span class="number-text">+1 (415) 555-0101 — San Francisco</span>
+            <span class="status-pill">Active</span>
+          </label>
+          <label class="number-option">
+            <input type="radio" name="active-number" />
+            <span class="number-text">+1 (650) 555-0123 — Palo Alto</span>
+          </label>
+          <label class="number-option">
+            <input type="radio" name="active-number" />
+            <span class="number-text">+1 (408) 555-0177 — San Jose</span>
+          </label>
+
+          <div class="number-actions">
+            <button class="send-btn" type="button">Set Active Number</button>
+            <a class="panel-link" href="purchase-number.html">Purchase New Number</a>
+          </div>
+        </form>
+      </section>
+
+      <section class="settings-card">
+        <h2>Account</h2>
+        <div class="setting-row"><span>Default forwarding number</span><strong>+1 (650) 555-0123</strong></div>
+        <div class="setting-row"><span>Voicemail transcription</span><strong>Enabled</strong></div>
+        <div class="setting-row"><span>Do not disturb schedule</span><strong>10:00 PM – 7:00 AM</strong></div>
+      </section>
+
+      <section class="settings-card">
+        <h2>Notifications</h2>
+        <div class="setting-row"><span>Email alerts</span><strong>On</strong></div>
+        <div class="setting-row"><span>Desktop notifications</span><strong>On</strong></div>
+      </section>
+    </main>
+  </body>
+</html>
