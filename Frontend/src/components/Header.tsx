@@ -31,10 +31,6 @@ const Header = () => {
       </div>
 
       <div className="topbar-right">
-        <SDKVersionDropdown />
-        <RegionSelect />
-        <PreCallDiagnosisButton />
-        <CheckRegistrationButton />
         <Link href="/settings" className="icon-btn" aria-label="Settings">
           ⚙
         </Link>

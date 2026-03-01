@@ -13,7 +13,7 @@ const Sidebar = () => {
   return (
     <aside className="sidebar">
       <button type="button" className="primary-btn">
-        + New call
+        Refresh
       </button>
       <nav>
         <details className="number-group" open>
