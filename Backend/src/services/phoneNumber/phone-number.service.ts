@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { APIError } from 'telnyx';
 import {
   FALLBACK_COUNTRIES,
   NOTIFICATIONS_TABLE,
@@ -7,28 +8,6 @@ import {
 } from '../../constants/phone-number.constants';
 import { SupabaseAdminService } from '../supabase/supabase-admin.service';
 import { TelnyxClientService } from '../telnyx/telnyx-client.service';
-
-/** Telnyx API response wrapper (many endpoints return { data: T }) */
-interface TelnyxResponse<T> {
-  data?: T;
-}
-
-interface TelnyxCountryItem {
-  country_code?: string;
-  country_name?: string;
-}
-
-interface TelnyxPhoneNumberResource {
-  id?: string;
-  phone_number?: string;
-  status?: string;
-  connection_id?: string | null;
-  [key: string]: unknown;
-}
-
-interface TelnyxOrderPayload {
-  phone_numbers?: { id?: string }[];
-}
 
 export interface CountryItem {
   code: string;
@@ -76,59 +55,72 @@ export class PhoneNumberService {
   }
 
   async getCountries(): Promise<CountryItem[]> {
-    const result = await this.telnyx.get<TelnyxResponse<TelnyxCountryItem[]>>(
-      'available_phone_number_countries',
-    );
-    if (result.error) {
+    try {
+      const res = await this.telnyx.getClient().countryCoverage.retrieve();
+      const data = res.data ?? {};
+      // Telnyx returns { [countryName]: { code: 'SN', numbers, features, ... } } — use value.code for API, key for display
+      const fallbackByName = new Map(FALLBACK_COUNTRIES.map((c) => [c.code, c.name]));
+      const items: CountryItem[] = [];
+      for (const [key, cov] of Object.entries(data)) {
+        const raw = cov as { code?: string; numbers?: boolean };
+        const isoCode = raw?.code?.trim();
+        if (!isoCode || isoCode.length !== 2) continue;
+        const displayName =
+          key.length > 2 ? key.trim() : (fallbackByName.get(isoCode) ?? isoCode);
+        items.push({ code: isoCode.toUpperCase(), name: displayName });
+      }
+      if (items.length === 0) return FALLBACK_COUNTRIES;
+      return items.sort((a, b) => a.name.localeCompare(b.name));
+    } catch (err) {
       console.warn(
-        'Telnyx available countries endpoint not available, using fallback list',
-        result.error,
+        'Telnyx country coverage not available, using fallback list',
+        err,
       );
       return FALLBACK_COUNTRIES;
     }
-    const data = (result.data as TelnyxResponse<TelnyxCountryItem[]>)?.data ?? [];
-    const countries = data
-      .map((c) => {
-        const code = c?.country_code;
-        if (!code) return null;
-        return { code, name: c?.country_name ?? code };
-      })
-      .filter((c): c is CountryItem => c != null)
-      .sort((a, b) => a.name.localeCompare(b.name));
-    return countries.length > 0 ? countries : FALLBACK_COUNTRIES;
   }
 
   async searchNumbers(query: SearchNumbersQuery): Promise<unknown[]> {
     const { countryCode, features, type, limit } = query;
-    const params: Record<string, string | number | undefined> = {
-      'filter[country_code]': countryCode,
-    };
+    const filter: {
+      country_code: string;
+      features?: ('sms' | 'mms' | 'voice' | 'fax' | 'emergency' | 'hd_voice' | 'international_sms' | 'local_calling')[];
+      phone_number_type?: 'local' | 'toll_free' | 'mobile' | 'national' | 'shared_cost';
+      limit?: number;
+    } = { country_code: countryCode, phone_number_type: 'local', limit: 10 };
     if (features) {
-      const arr = Array.isArray(features) ? features : [features];
-      if (arr.length > 0) params['filter[features]'] = arr.join(',');
+      filter.features = (Array.isArray(features) ? features : [features]) as typeof filter.features;
     }
-    if (type) params['filter[phone_number_type]'] = type;
-    if (limit != null && limit > 0) params['filter[limit]'] = limit;
+    if (type) filter.phone_number_type = type as typeof filter.phone_number_type;
+    if (limit != null && limit > 0) filter.limit = limit;
 
-    const result = await this.telnyx.get<TelnyxResponse<unknown[]>>('available_phone_numbers', params);
-    if (result.error) {
-      console.error('Telnyx available numbers error', result.error);
+    try {
+      const { data: numbers } = await this.telnyx.getClient().availablePhoneNumbers.list({
+        filter,
+      });
+      return numbers ?? [];
+    } catch (e: unknown) {
+      console.error('Telnyx available numbers error', e);
+      if (e instanceof APIError) {
+        console.error('Status:', e.status);
+        console.error('Error:', e.error);
+      }
       return [];
     }
-    const wrapper = result.data as TelnyxResponse<unknown[]> | undefined;
-    return wrapper?.data ?? [];
   }
 
   async orderNumber(userId: string, input: OrderNumberInput): Promise<{ data?: unknown; error?: string }> {
     const { phoneNumber, countryCode = '', monthlyCost = 0, rawNumberDetails = null } = input;
-    const orderResult = await this.telnyx.post<TelnyxResponse<TelnyxOrderPayload>>('number_orders', {
-      phone_numbers: [{ phone_number: phoneNumber }],
-    });
-    if (orderResult.error) {
-      console.error('Telnyx number order error', orderResult.error);
+    let orderData: { phone_numbers?: { id?: string }[] };
+    try {
+      const orderResult = await this.telnyx.getClient().numberOrders.create({
+        phone_numbers: [{ phone_number: phoneNumber }],
+      });
+      orderData = orderResult.data ?? {};
+    } catch (err) {
+      console.error('Telnyx number order error', err);
       return { error: 'Error ordering phone number from Telnyx' };
     }
-    const orderData = (orderResult.data as TelnyxResponse<TelnyxOrderPayload>)?.data;
     const telnyxNumberId = Array.isArray(orderData?.phone_numbers)
       ? orderData?.phone_numbers[0]?.id
       : undefined;
@@ -142,7 +134,7 @@ export class PhoneNumberService {
       country_code: countryCode,
       capabilities: [],
       monthly_cost: monthlyCost,
-      raw_telnyx_data: orderData ?? orderResult.data ?? null,
+      raw_telnyx_data: orderData ?? null,
       raw_number_details: rawNumberDetails,
     }).select().single();
     if (insertError) return { error: insertError.message };
@@ -183,14 +175,18 @@ export class PhoneNumberService {
         let phone_number_connection_id: string | null = null;
         const phoneNumber = num.phone_number as string;
         if (phoneNumber) {
-          const res = await this.telnyx.get<TelnyxResponse<TelnyxPhoneNumberResource[]>>(
-            'phone_numbers',
-            { 'filter[phone_number]': phoneNumber },
-          );
-          const list = (res.data as TelnyxResponse<TelnyxPhoneNumberResource[]>)?.data ?? [];
-          if (list.length > 0) {
-            phone_number_status = list[0].status ?? null;
-            phone_number_connection_id = list[0].connection_id ?? null;
+          try {
+            const page = await this.telnyx.getClient().phoneNumbers.list({
+              filter: { phone_number: phoneNumber },
+            });
+            const list = page.data ?? [];
+            if (list.length > 0) {
+              const first = list[0];
+              phone_number_status = first.status ?? null;
+              phone_number_connection_id = first.connection_id ?? null;
+            }
+          } catch {
+            // ignore per-number lookup errors
           }
         }
         const costInfo = (rawNumberDetails.cost_information as { monthly_cost?: string; currency?: string }) ?? {};
@@ -222,21 +218,25 @@ export class PhoneNumberService {
     const connectionId = this.config.get<string>('TELNYX_CONNECTION_ID');
     if (!connectionId) return { ok: false, error: 'TELNYX_CONNECTION_ID is not configured' };
 
-    const res = await this.telnyx.get<TelnyxResponse<TelnyxPhoneNumberResource[]>>('phone_numbers', {
-      'filter[phone_number]': phoneNumber,
-    });
-    const list = (res.data as TelnyxResponse<TelnyxPhoneNumberResource[]>)?.data ?? [];
-    if (list.length === 0) return { ok: false, error: 'Phone number not found' };
-    const resource = list[0];
-    const resourceId = resource.id;
-    if (!resourceId) return { ok: false, error: 'Phone number ID not found in response' };
+    const client = this.telnyx.getClient();
+    let resourceId: string;
+    try {
+      const page = await client.phoneNumbers.list({
+        filter: { phone_number: phoneNumber },
+      });
+      const list = page.data ?? [];
+      if (list.length === 0) return { ok: false, error: 'Phone number not found' };
+      resourceId = list[0].id;
+      if (!resourceId) return { ok: false, error: 'Phone number ID not found in response' };
+    } catch (err) {
+      console.error('Enable voice call list error', err);
+      return { ok: false, error: 'Phone number not found' };
+    }
 
-    const patchResult = await this.telnyx.patch<TelnyxResponse<unknown>>(
-      `phone_numbers/${resourceId}`,
-      { connection_id: connectionId },
-    );
-    if (patchResult.error) {
-      console.error('Enable voice call error', patchResult.error);
+    try {
+      await client.phoneNumbers.update(resourceId, { connection_id: connectionId });
+    } catch (err) {
+      console.error('Enable voice call error', err);
       return { ok: false, error: 'Error enabling voice call' };
     }
 
@@ -257,25 +257,33 @@ export class PhoneNumberService {
     userId: string,
     phoneNumber: string,
   ): Promise<{ ok: boolean; error?: string }> {
-    const res = await this.telnyx.get<TelnyxResponse<TelnyxPhoneNumberResource[]>>('phone_numbers', {
-      'filter[phone_number]': phoneNumber,
-    });
-    const list = (res.data as TelnyxResponse<TelnyxPhoneNumberResource[]>)?.data ?? [];
-    if (list.length === 0) return { ok: false, error: 'Phone number not found' };
-    const resource = list[0];
-    if (resource.status !== 'active') {
-      return {
-        ok: false,
-        error:
-          "This phone number is still not assigned to your account, after it's assigned, you can delete it.",
-      };
+    const client = this.telnyx.getClient();
+    let resourceId: string;
+    try {
+      const page = await client.phoneNumbers.list({
+        filter: { phone_number: phoneNumber },
+      });
+      const list = page.data ?? [];
+      if (list.length === 0) return { ok: false, error: 'Phone number not found' };
+      const resource = list[0];
+      if (resource.status !== 'active') {
+        return {
+          ok: false,
+          error:
+            "This phone number is still not assigned to your account, after it's assigned, you can delete it.",
+        };
+      }
+      resourceId = resource.id;
+      if (!resourceId) return { ok: false, error: 'Phone number ID not found in response' };
+    } catch (err) {
+      console.error('Telnyx list number error', err);
+      return { ok: false, error: 'Phone number not found' };
     }
-    const resourceId = resource.id;
-    if (!resourceId) return { ok: false, error: 'Phone number ID not found in response' };
 
-    const delResult = await this.telnyx.delete(`phone_numbers/${resourceId}`);
-    if (delResult.error) {
-      console.error('Telnyx delete number error', delResult.error);
+    try {
+      await client.phoneNumbers.delete(resourceId);
+    } catch (err) {
+      console.error('Telnyx delete number error', err);
       return { ok: false, error: 'Error deleting phone number from Telnyx' };
     }
 
