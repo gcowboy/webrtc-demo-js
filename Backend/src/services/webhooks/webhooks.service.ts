@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { WebhookEvent } from '@clerk/backend/webhooks';
 import type { UserJSON } from '@clerk/types';
 import { mapClerkUserToProfile } from '../../helpers/clerk.helper';
-import { UserService } from '../../services/userService/user.service';
+import { UserService } from '../userService/user.service';
 
 @Injectable()
 export class WebhooksService {

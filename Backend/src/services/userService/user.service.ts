@@ -1,14 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import {
+  CLERK_ID_METADATA_KEY,
+  DEFAULT_INSTANCE_ID_UUID,
+  INSTANCE_ID_METADATA_KEY,
+} from '../../constants/user.constants';
 import { getInstanceIdUuid } from '../../helpers/uuid.helper';
-import { SupabaseAdminService } from '../../modules/supabase/supabase-admin.service';
+import { SupabaseAdminService } from '../supabase/supabase-admin.service';
 import { User } from '@supabase/supabase-js';
 
-const CLERK_ID_METADATA_KEY = 'clerk_id';
-export const INSTANCE_ID_METADATA_KEY = 'instance_id';
-
-/** Default instance id when INSTANCE_ID env is unset or invalid. */
-const DEFAULT_INSTANCE_ID_UUID = '00000000-0000-0000-0000-000000000000';
+export { INSTANCE_ID_METADATA_KEY } from '../../constants/user.constants';
 
 @Injectable()
 export class UserService {

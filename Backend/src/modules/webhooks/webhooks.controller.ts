@@ -11,7 +11,7 @@ import {
 import { Request } from 'express';
 import { verifyWebhook } from '@clerk/backend/webhooks';
 import { ConfigService } from '@nestjs/config';
-import { WebhooksService } from './webhooks.service';
+import { WebhooksService } from '../../services/webhooks/webhooks.service';
 
 @Controller('webhooks')
 export class WebhooksController {
