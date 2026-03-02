@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { SupabaseModule } from './supabase/supabase.module';
-import { WebhooksModule } from './webhooks/webhooks.module';
+import { SupabaseModule } from './modules/supabase/supabase.module';
+import { WebhooksModule } from './modules/webhooks/webhooks.module';
 
 @Module({
   imports: [
