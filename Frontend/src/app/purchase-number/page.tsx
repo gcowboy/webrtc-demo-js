@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@clerk/nextjs';
+import type { CountryItem, OrderNumberInput } from '@nuropad/shared-dto';
 import { Button } from '@/components/ui/button';
 import {
   FormControlField,
@@ -15,25 +16,15 @@ import {
 import { fetchNumbersApi } from '@/lib/api';
 import { toast } from 'sonner';
 
-type Country = { code: string; name: string };
-
-type AvailableNumber = {
-  phone_number?: string;
-  region_information?: Array<{ region_type?: string; region_name?: string }>;
-  cost_information?: { monthly_cost?: string; currency?: string };
-  features?: Array<{ name?: string }>;
-  [key: string]: unknown;
-};
-
 export default function PurchaseNumberPage() {
   const { getToken } = useAuth();
-  const [countries, setCountries] = useState<Country[]>([]);
+  const [countries, setCountries] = useState<CountryItem[]>([]);
   const [selectedCountry, setSelectedCountry] = useState<string>('');
   const [areaCode, setAreaCode] = useState('');
   const [loadingCountries, setLoadingCountries] = useState(true);
   const [searching, setSearching] = useState(false);
   const [purchasing, setPurchasing] = useState<string | null>(null);
-  const [availableNumbers, setAvailableNumbers] = useState<AvailableNumber[]>([]);
+  const [availableNumbers, setAvailableNumbers] = useState<OrderNumberInput[]>([]);
 
   const loadCountries = useCallback(async () => {
     if (!getToken) return;
@@ -83,8 +74,8 @@ export default function PurchaseNumberPage() {
     }
   };
 
-  const handlePurchase = async (item: AvailableNumber) => {
-    const phoneNumber = item?.phone_number;
+  const handlePurchase = async (item: OrderNumberInput) => {
+    const phoneNumber = item?.phoneNumber;
     if (!getToken || !phoneNumber) return;
     setPurchasing(phoneNumber);
     try {
@@ -93,9 +84,7 @@ export default function PurchaseNumberPage() {
         body: JSON.stringify({
           phoneNumber,
           countryCode: selectedCountry,
-          monthlyCost: item?.cost_information?.monthly_cost
-            ? parseFloat(String(item.cost_information.monthly_cost))
-            : undefined,
+          monthlyCost: item?.monthlyPrice,
           rawNumberDetails: item,
         }),
       });
@@ -104,7 +93,7 @@ export default function PurchaseNumberPage() {
         throw new Error(err?.message || res.statusText);
       }
       toast.success(`Purchased ${phoneNumber}`);
-      setAvailableNumbers((prev) => prev.filter((n) => n.phone_number !== phoneNumber));
+      setAvailableNumbers((prev) => prev.filter((n) => n.phoneNumber !== phoneNumber));
     } catch (e) {
       console.error('Purchase failed', e);
       toast.error(e instanceof Error ? e.message : 'Failed to purchase number');
@@ -167,36 +156,48 @@ export default function PurchaseNumberPage() {
         </FormStack>
 
         {availableNumbers.length > 0 && (
-          <div className="available-list">
-            <h3 className="mb-2 text-sm font-medium text-muted-foreground">
-              Available numbers
-            </h3>
-            <ul className="space-y-2">
+          <div className="numbers-list">
+            <header className="numbers-list__header">
+              <h3 className="numbers-list__title">Available numbers</h3>
+              <span className="numbers-list__count" aria-label={`${availableNumbers.length} numbers`}>
+                {availableNumbers.length}
+              </span>
+            </header>
+            <ul className="numbers-list__grid">
               {availableNumbers.map((item) => {
-                const num = item?.phone_number ?? '';
-                const region = item?.region_information?.[0];
-                const location =
-                  region?.region_name || region?.region_type || '';
-                const cost = item?.cost_information?.monthly_cost;
-                const currency = item?.cost_information?.currency ?? 'USD';
+                const num = item?.phoneNumber ?? '';
+                const cost = item?.monthlyPrice;
                 const isPurchasing = purchasing === num;
                 return (
                   <li key={num}>
-                    <article className="available-item flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card p-3 text-card-foreground">
-                      <div>
-                        <h4 className="font-medium">{num || '—'}</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {location && `${location} • `}
-                          {cost != null ? `${currency} ${cost}/mo` : ''}
-                        </p>
+                    <article className="number-card">
+                      <div className="number-card__accent" aria-hidden />
+                      <div className="number-card__body">
+                        <div className="number-card__main">
+                          <p className="number-card__number">{num || '—'}</p>
+                          <dl className="number-card__meta">
+                            {cost != null && (
+                              <>
+                                <dt className="number-card__meta-dt">Monthly</dt>
+                                <dd className="number-card__meta-dd">
+                                  USD {cost}/mo
+                                </dd>
+                              </>
+                            )}
+                          </dl>
+                        </div>
+                        <div className="number-card__action">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="number-card__purchase-btn"
+                            onClick={() => handlePurchase(item)}
+                            disabled={isPurchasing}
+                          >
+                            {isPurchasing ? 'Purchasing…' : 'Purchase'}
+                          </Button>
+                        </div>
                       </div>
-                      <Button
-                        size="sm"
-                        onClick={() => handlePurchase(item)}
-                        disabled={isPurchasing}
-                      >
-                        {isPurchasing ? 'Purchasing…' : 'Purchase'}
-                      </Button>
                     </article>
                   </li>
                 );

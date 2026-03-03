@@ -10,6 +10,10 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
+    "paths": {
+      "@nuropad/shared-dto": ["../packages/shared-dto/dist"],
+      "@nuropad/shared-dto/*": ["../packages/shared-dto/dist/*"]
+    },
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,

@@ -1,46 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { APIError } from 'telnyx';
+import type {
+  CountryItem,
+  ListNumberItem,
+  OrderNumberInput,
+  SearchNumbersQuery,
+} from '@nuropad/shared-dto';
 import {
-  FALLBACK_COUNTRIES,
-  NOTIFICATIONS_TABLE,
-  PHONE_NUMBERS_TABLE,
+  FALLBACK_COUNTRIES
 } from '../../constants/phone-number.constants';
+
+import { NOTIFICATIONS_TABLE, PHONE_NUMBERS_TABLE } from '../../constants/supabase.constants';
 import { SupabaseAdminService } from '../supabase/supabase-admin.service';
 import { TelnyxClientService } from '../telnyx/telnyx-client.service';
-
-export interface CountryItem {
-  code: string;
-  name: string;
-}
-
-export interface SearchNumbersQuery {
-  countryCode: string;
-  features?: string | string[];
-  type?: string;
-  limit?: number;
-}
-
-export interface OrderNumberInput {
-  phoneNumber: string;
-  countryCode?: string;
-  monthlyCost?: number;
-  rawNumberDetails?: Record<string, unknown> | null;
-}
-
-export interface ListNumberItem {
-  id: string;
-  phone_number: string;
-  phone_number_id: string | null;
-  phone_number_status: string | null;
-  phone_number_connection_id: string | null;
-  region_information: unknown[];
-  features: { name: string }[];
-  cost_information: { monthly_cost: string; currency: string };
-  status: string;
-  created_at: string;
-  createdAt: string;
-}
+import { AvailablePhoneNumberListResponse } from 'telnyx/resources/available-phone-numbers';
 
 @Injectable()
 export class PhoneNumberService {
@@ -80,14 +54,28 @@ export class PhoneNumberService {
     }
   }
 
-  async searchNumbers(query: SearchNumbersQuery): Promise<unknown[]> {
+  private assignCustomCostForNumbers(data: AvailablePhoneNumberListResponse.Data[] | undefined): OrderNumberInput[] {
+    if (!data || data.length === 0) return [];
+    return data.map((item) => ({
+      phoneNumber: item.phone_number ?? '',
+      price: 2,
+      monthlyPrice: 3
+    }));
+  }
+
+  async searchNumbers(query: SearchNumbersQuery): Promise<OrderNumberInput[]> {
     const { countryCode, features, type, limit } = query;
     const filter: {
       country_code: string;
       features?: ('sms' | 'mms' | 'voice' | 'fax' | 'emergency' | 'hd_voice' | 'international_sms' | 'local_calling')[];
       phone_number_type?: 'local' | 'toll_free' | 'mobile' | 'national' | 'shared_cost';
       limit?: number;
-    } = { country_code: countryCode, phone_number_type: 'local', limit: 10 };
+    } = { 
+      country_code: countryCode, 
+      features: ['local_calling', 'sms', 'voice'],
+      phone_number_type: 'local', 
+      limit: 30 
+    };
     if (features) {
       filter.features = (Array.isArray(features) ? features : [features]) as typeof filter.features;
     }
@@ -98,7 +86,8 @@ export class PhoneNumberService {
       const { data: numbers } = await this.telnyx.getClient().availablePhoneNumbers.list({
         filter,
       });
-      return numbers ?? [];
+      var orderNumberInputData = this.assignCustomCostForNumbers(numbers);
+      return orderNumberInputData ?? [];
     } catch (e: unknown) {
       console.error('Telnyx available numbers error', e);
       if (e instanceof APIError) {
@@ -110,7 +99,7 @@ export class PhoneNumberService {
   }
 
   async orderNumber(userId: string, input: OrderNumberInput): Promise<{ data?: unknown; error?: string }> {
-    const { phoneNumber, countryCode = '', monthlyCost = 0, rawNumberDetails = null } = input;
+    const { phoneNumber, countryCode = '', price = 0, monthlyPrice = 0 } = input;
     let orderData: { phone_numbers?: { id?: string }[] };
     try {
       const orderResult = await this.telnyx.getClient().numberOrders.create({
@@ -133,9 +122,8 @@ export class PhoneNumberService {
       phone_number: phoneNumber,
       country_code: countryCode,
       capabilities: [],
-      monthly_cost: monthlyCost,
+      monthly_cost: monthlyPrice,
       raw_telnyx_data: orderData ?? null,
-      raw_number_details: rawNumberDetails,
     }).select().single();
     if (insertError) return { error: insertError.message };
 

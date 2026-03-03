@@ -1,7 +1,7 @@
 # Telnyx JS Voice SDK Demo Application
 
 [![NPM Version](https://img.shields.io/npm/v/@telnyx/webrtc.svg)](https://www.npmjs.com/package/@telnyx/webrtc)
-[![License](https://img.shields.io/github/license/team-telnyx/webrtc-demo-js.svg)](LICENSE)
+[![License](https://img.shields.io/github/license/team-telnyx/nuropad.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue.svg)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-18.3-blue.svg)](https://reactjs.org/)
 
@@ -18,8 +18,8 @@ An open source reference implementation of Telnyx's Voice SDK for web browsers. 
 1. Clone the repository
 
    ```bash
-   git clone https://github.com/team-telnyx/webrtc-demo-js.git
-   cd webrtc-demo-js
+   git clone https://github.com/team-telnyx/nuropad.git
+   cd nuropad
    ```
 
 2. Install dependencies

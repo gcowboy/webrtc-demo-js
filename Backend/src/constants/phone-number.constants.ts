@@ -1,6 +1,3 @@
-export const PHONE_NUMBERS_TABLE = 'phone_numbers';
-export const NOTIFICATIONS_TABLE = 'notifications';
-
 /** Fallback when Telnyx available_phone_number_countries is unavailable */
 export const FALLBACK_COUNTRIES: { code: string; name: string }[] = [
   { code: 'US', name: 'United States' },

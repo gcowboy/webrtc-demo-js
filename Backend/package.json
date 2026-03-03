@@ -1,5 +1,5 @@
 {
-  "name": "webrtc-demo-backend",
+  "name": "nuropad-backend",
   "version": "0.0.0",
   "private": true,
   "scripts": {
@@ -10,6 +10,7 @@
     "start:prod": "node dist/main"
   },
   "dependencies": {
+    "@nuropad/shared-dto": "*",
     "@clerk/backend": "^2.32.2",
     "@nestjs/common": "^10.4.15",
     "@nestjs/config": "^3.3.0",

@@ -60,6 +60,9 @@
   .setting-row { flex-direction: column; gap: 4px; }
   .number-actions { flex-direction: column; align-items: stretch; }
   .available-item { flex-direction: column; align-items: flex-start; }
+  .number-card__body { flex-direction: column; align-items: stretch; padding: 1rem 1rem 1rem 1.25rem; }
+  .number-card__action { width: 100%; }
+  .number-card__action button { width: 100%; }
 }
 @media (max-width: 520px) {
   .form-row { grid-template-columns: 1fr; }

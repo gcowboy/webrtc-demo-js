@@ -1,0 +1,14 @@
+{
+  "name": "@nuropad/shared-dto",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\""
+  },
+  "devDependencies": {
+    "typescript": "~5.6.2"
+  }
+}

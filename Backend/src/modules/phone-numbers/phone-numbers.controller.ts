@@ -12,6 +12,7 @@ import {
   HttpStatus,
   BadRequestException,
 } from '@nestjs/common';
+import type { OrderNumberRequestDto } from '@nuropad/shared-dto';
 import { PhoneNumberService } from '../../services/phoneNumber/phone-number.service';
 import { ClerkAuthGuard } from '../../common/clerk-auth.guard';
 import { CurrentUserId } from '../../common/current-user-id.decorator';
@@ -49,13 +50,7 @@ export class PhoneNumbersController {
   @HttpCode(HttpStatus.CREATED)
   async orderNumber(
     @CurrentUserId() userId: string,
-    @Body()
-    body: {
-      phoneNumber: string;
-      countryCode?: string;
-      monthlyCost?: number;
-      rawNumberDetails?: Record<string, unknown> | null;
-    },
+    @Body() body: OrderNumberRequestDto,
   ) {
     if (!body?.phoneNumber) {
       throw new BadRequestException('phoneNumber is required');
@@ -63,8 +58,8 @@ export class PhoneNumbersController {
     const result = await this.phoneNumberService.orderNumber(userId, {
       phoneNumber: body.phoneNumber,
       countryCode: body.countryCode,
-      monthlyCost: body.monthlyCost,
-      rawNumberDetails: body.rawNumberDetails ?? null,
+      price: 1,
+      monthlyPrice: body.monthlyCost ?? 2,
     });
     if (result.error) {
       throw new BadRequestException(result.error);
