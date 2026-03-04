@@ -147,6 +147,22 @@ export class TelnyxClientService {
   }
 
   /**
+   * Gets a JWT token for a SIP credential connection. Use this token for WebRTC or client auth instead of sending username/password.
+   * @param credentialConnectionId - The credential connection id (e.g. from create response or user.telnyxCredentialConnectionId).
+   * @returns The JWT token string.
+   */
+  async getSipConnectionToken(credentialConnectionId: string): Promise<string> {
+    const client = this.client as Telnyx & { telephonyCredentials?: { createToken: (id: string) => Promise<string | { data?: string }> } };
+    if (!client.telephonyCredentials?.createToken) {
+      throw new Error('Telnyx SDK telephonyCredentials.createToken not available');
+    }
+    const response = await client.telephonyCredentials.createToken(credentialConnectionId);
+    const token = typeof response === 'string' ? response : (response as { data?: string })?.data ?? '';
+    if (!token) throw new Error('Telnyx returned an empty SIP connection token');
+    return token;
+  }
+
+  /**
    * Fetches a SIP credential connection by id.
    * @param id - The credential connection id.
    * @returns The credential connection data.
@@ -168,5 +184,22 @@ export class TelnyxClientService {
   ): Promise<{ data: Telnyx.CredentialConnections.CredentialConnection }> {
     const result = await this.client.credentialConnections.delete(id);
     return result as { data: Telnyx.CredentialConnections.CredentialConnection };
+  }
+
+  /**
+   * Assigns a purchased phone number to a user's SIP (credential) connection.
+   * Inbound and outbound voice for that number will use the given connection.
+   * @param phoneNumberId - Telnyx phone number resource id (e.g. from order response or user's telnyxNumberId).
+   * @param credentialConnectionId - The SIP credential connection id (e.g. user.telnyxCredentialConnectionId).
+   * @returns The updated phone number data from Telnyx.
+   */
+  async assignPhoneNumberToSipConnection(
+    phoneNumberId: string,
+    credentialConnectionId: string,
+  ): Promise<{ data: unknown }> {
+    const result = await this.client.phoneNumbers.update(phoneNumberId, {
+      connection_id: credentialConnectionId,
+    });
+    return result as { data: unknown };
   }
 }
