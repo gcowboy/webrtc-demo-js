@@ -18,6 +18,8 @@ NestJS server for webrtc-demo. Handles the **Clerk webhook** (syncs users to Pos
    npx prisma migrate dev
    ```
 
+   cd c:\Users\user\Documents\Work\webrtc-demo-js\Backend; npx prisma migrate deploy; npx prisma generate
+   
 3. Run the server:
    ```bash
    npm run start:dev

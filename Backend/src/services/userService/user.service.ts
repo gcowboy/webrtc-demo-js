@@ -59,4 +59,27 @@ export class UserService {
       return { error: err instanceof Error ? err : new Error(String(err)) };
     }
   }
+
+  async findById(clerkId: string): Promise<{ id: string; telnyxCredentialConnectionId: string | null } | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: clerkId },
+      select: { id: true, telnyxCredentialConnectionId: true },
+    } as { where: { id: string }; select: { id: true; telnyxCredentialConnectionId: true } });
+    return user;
+  }
+
+  async updateCredentialConnectionId(
+    clerkId: string,
+    telnyxCredentialConnectionId: string | null,
+  ): Promise<{ error: Error | null }> {
+    try {
+      await this.prisma.user.update({
+        where: { id: clerkId },
+        data: { telnyxCredentialConnectionId },
+      } as { where: { id: string }; data: { telnyxCredentialConnectionId: string | null } });
+      return { error: null };
+    } catch (err) {
+      return { error: err instanceof Error ? err : new Error(String(err)) };
+    }
+  }
 }
