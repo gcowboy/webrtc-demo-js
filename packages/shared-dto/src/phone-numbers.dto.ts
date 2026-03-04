@@ -11,6 +11,7 @@ export interface SearchNumbersQuery {
   countryCode: string;
   features?: string | string[];
   type?: string;
+  areaCode?: string;
   limit?: number;
 }
 

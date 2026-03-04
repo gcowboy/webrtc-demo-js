@@ -7,32 +7,26 @@ import type {
   OrderNumberInput,
   SearchNumbersQuery,
 } from '@nuropad/shared-dto';
-import {
-  FALLBACK_COUNTRIES
-} from '../../constants/phone-number.constants';
-
-import { NOTIFICATIONS_TABLE, PHONE_NUMBERS_TABLE } from '../../constants/supabase.constants';
-import { SupabaseAdminService } from '../supabase/supabase-admin.service';
+import { FALLBACK_COUNTRIES } from '../../constants/phone-number.constants';
+import { PrismaService } from '../../prisma/prisma.service';
 import { TelnyxClientService } from '../telnyx/telnyx-client.service';
-import { AvailablePhoneNumberListResponse } from 'telnyx/resources/available-phone-numbers';
+import {
+  AvailablePhoneNumberListParams,
+  AvailablePhoneNumberListResponse,
+} from 'telnyx/resources/available-phone-numbers';
 
 @Injectable()
 export class PhoneNumberService {
   constructor(
     private readonly telnyx: TelnyxClientService,
-    private readonly supabaseAdmin: SupabaseAdminService,
+    private readonly prisma: PrismaService,
     private readonly config: ConfigService,
   ) {}
-
-  private get client() {
-    return this.supabaseAdmin.getClient();
-  }
 
   async getCountries(): Promise<CountryItem[]> {
     try {
       const res = await this.telnyx.getClient().countryCoverage.retrieve();
       const data = res.data ?? {};
-      // Telnyx returns { [countryName]: { code: 'SN', numbers, features, ... } } — use value.code for API, key for display
       const fallbackByName = new Map(FALLBACK_COUNTRIES.map((c) => [c.code, c.name]));
       const items: CountryItem[] = [];
       for (const [key, cov] of Object.entries(data)) {
@@ -54,39 +48,42 @@ export class PhoneNumberService {
     }
   }
 
-  private assignCustomCostForNumbers(data: AvailablePhoneNumberListResponse.Data[] | undefined): OrderNumberInput[] {
+  private assignCustomCostForNumbers(
+    data: AvailablePhoneNumberListResponse.Data[] | undefined,
+  ): OrderNumberInput[] {
     if (!data || data.length === 0) return [];
     return data.map((item) => ({
       phoneNumber: item.phone_number ?? '',
       price: 2,
-      monthlyPrice: 3
+      monthlyPrice: 3,
     }));
   }
 
   async searchNumbers(query: SearchNumbersQuery): Promise<OrderNumberInput[]> {
-    const { countryCode, features, type, limit } = query;
-    const filter: {
-      country_code: string;
-      features?: ('sms' | 'mms' | 'voice' | 'fax' | 'emergency' | 'hd_voice' | 'international_sms' | 'local_calling')[];
-      phone_number_type?: 'local' | 'toll_free' | 'mobile' | 'national' | 'shared_cost';
-      limit?: number;
-    } = { 
-      country_code: countryCode, 
+    const { countryCode, features, type, areaCode, limit } = query;
+    const filter: AvailablePhoneNumberListParams.Filter = {
+      country_code: countryCode,
       features: ['local_calling', 'sms', 'voice'],
-      phone_number_type: 'local', 
-      limit: 30 
+      phone_number_type: 'local',
+      limit: 30,
     };
+    if (areaCode?.trim()) {
+      filter.national_destination_code = areaCode.trim();
+    }
     if (features) {
-      filter.features = (Array.isArray(features) ? features : [features]) as typeof filter.features;
+      filter.features = (Array.isArray(features)
+        ? features
+        : [features]) as typeof filter.features;
     }
     if (type) filter.phone_number_type = type as typeof filter.phone_number_type;
     if (limit != null && limit > 0) filter.limit = limit;
 
     try {
-      const { data: numbers } = await this.telnyx.getClient().availablePhoneNumbers.list({
-        filter,
-      });
-      var orderNumberInputData = this.assignCustomCostForNumbers(numbers);
+      const { data: numbers } =
+        await this.telnyx.getClient().availablePhoneNumbers.list({
+          filter,
+        });
+      const orderNumberInputData = this.assignCustomCostForNumbers(numbers);
       return orderNumberInputData ?? [];
     } catch (e: unknown) {
       console.error('Telnyx available numbers error', e);
@@ -98,7 +95,10 @@ export class PhoneNumberService {
     }
   }
 
-  async orderNumber(userId: string, input: OrderNumberInput): Promise<{ data?: unknown; error?: string }> {
+  async orderNumber(
+    userId: string,
+    input: OrderNumberInput,
+  ): Promise<{ data?: unknown; error?: string }> {
     const { phoneNumber, countryCode = '', price = 0, monthlyPrice = 0 } = input;
     let orderData: { phone_numbers?: { id?: string }[] };
     try {
@@ -114,89 +114,119 @@ export class PhoneNumberService {
       ? orderData?.phone_numbers[0]?.id
       : undefined;
 
-    const db = this.client;
-    if (!db) return { error: 'Supabase not configured' };
-    const { data: row, error: insertError } = await db.from(PHONE_NUMBERS_TABLE).insert({
-      user_id: userId,
-      telnyx_number_id: telnyxNumberId ?? null,
-      phone_number: phoneNumber,
-      country_code: countryCode,
-      capabilities: [],
-      monthly_cost: monthlyPrice,
-      raw_telnyx_data: orderData ?? null,
-    }).select().single();
-    if (insertError) return { error: insertError.message };
+    try {
+      // Ensure user exists (e.g. if webhook hasn't run yet)
+      await this.prisma.user.upsert({
+        where: { id: userId },
+        create: { id: userId },
+        update: {},
+      });
 
-    await db.from(NOTIFICATIONS_TABLE).insert({
-      user_id: userId,
-      type: 'number',
-      title: 'Number purchased',
-      message: `You purchased phone number ${phoneNumber}`,
-      data: { phoneNumber },
-    });
+      const row = await this.prisma.phoneNumber.create({
+        data: {
+          userId,
+          telnyxNumberId: telnyxNumberId ?? null,
+          phoneNumber,
+          countryCode,
+          capabilities: [],
+          monthlyCost: monthlyPrice,
+          rawTelnyxData: orderData ?? undefined,
+        },
+      });
 
-    return { data: row };
+      await this.prisma.notification.create({
+        data: {
+          userId,
+          type: 'number',
+          title: 'Number purchased',
+          message: `You purchased phone number ${phoneNumber}`,
+          data: { phoneNumber },
+        },
+      });
+
+      return { data: row };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Database error';
+      return { error: message };
+    }
   }
 
-  async listMyNumbers(userId: string): Promise<{ data?: ListNumberItem[]; error?: string }> {
-    const db = this.client;
-    if (!db) return { error: 'Supabase not configured' };
-    const { data: numbers, error } = await db
-      .from(PHONE_NUMBERS_TABLE)
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-    if (error) return { error: error.message };
-    if (!numbers?.length) return { data: [] };
+  async listMyNumbers(
+    userId: string,
+  ): Promise<{ data?: ListNumberItem[]; error?: string }> {
+    try {
+      const numbers = await this.prisma.phoneNumber.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+      });
 
-    const items: ListNumberItem[] = await Promise.all(
-      numbers.map(async (num: Record<string, unknown>) => {
-        const rawNumberDetails = (num.raw_number_details as Record<string, unknown>) ?? {};
-        let features: { name: string }[] = (rawNumberDetails.features as { name: string }[]) ?? [];
-        if (features.length > 0 && typeof features[0] === 'string') {
-          features = (features as unknown as string[]).map((f) => ({ name: f }));
-        }
-        if (features.length === 0 && Array.isArray(num.capabilities)) {
-          features = (num.capabilities as string[]).map((cap) => ({ name: cap }));
-        }
-        let phone_number_status: string | null = null;
-        let phone_number_connection_id: string | null = null;
-        const phoneNumber = num.phone_number as string;
-        if (phoneNumber) {
-          try {
-            const page = await this.telnyx.getClient().phoneNumbers.list({
-              filter: { phone_number: phoneNumber },
-            });
-            const list = page.data ?? [];
-            if (list.length > 0) {
-              const first = list[0];
-              phone_number_status = first.status ?? null;
-              phone_number_connection_id = first.connection_id ?? null;
-            }
-          } catch {
-            // ignore per-number lookup errors
+      if (!numbers.length) return { data: [] };
+
+      const items: ListNumberItem[] = await Promise.all(
+        numbers.map(async (num: (typeof numbers)[number]) => {
+          const rawNumberDetails = (num.rawNumberDetails as Record<string, unknown>) ?? {};
+          let features: { name: string }[] =
+            (rawNumberDetails.features as { name: string }[]) ?? [];
+          if (features.length > 0 && typeof features[0] === 'string') {
+            features = (features as unknown as string[])?.map((f) => ({ name: f })) ?? [];
           }
-        }
-        const costInfo = (rawNumberDetails.cost_information as { monthly_cost?: string; currency?: string }) ?? {};
-        return {
-          id: num.id as string,
-          phone_number: phoneNumber,
-          phone_number_id: (num.telnyx_number_id as string) ?? null,
-          phone_number_status,
-          phone_number_connection_id,
-          region_information: (rawNumberDetails.region_information as unknown[]) ?? [],
-          features,
-          cost_information: {
-            monthly_cost: costInfo.monthly_cost ?? String(num.monthly_cost ?? '0'),
-            currency: costInfo.currency ?? 'USD',
-          },
-          status: 'active',
-          created_at: (num.created_at as string) ?? '',
-          createdAt: (num.created_at as string) ?? '',
-        };
-      }),
-    );
-    return { data: items };
+          if (
+            features.length === 0 &&
+            Array.isArray(num.capabilities)
+          ) {
+            features = (num.capabilities as string[]).map((cap) => ({ name: cap }));
+          }
+          let phone_number_status: string | null = null;
+          let phone_number_connection_id: string | null = null;
+          const phoneNumber = num.phoneNumber;
+          if (phoneNumber) {
+            try {
+              const page = await this.telnyx.getClient().phoneNumbers.list({
+                filter: { phone_number: phoneNumber },
+              });
+              const list = page.data ?? [];
+              if (list.length > 0) {
+                const first = list[0];
+                phone_number_status = first.status ?? null;
+                phone_number_connection_id = first.connection_id ?? null;
+              }
+            } catch {
+              // ignore per-number lookup errors
+            }
+          }
+          const costInfo =
+            (rawNumberDetails.cost_information as {
+              monthly_cost?: string;
+              currency?: string;
+            }) ?? {};
+          const monthlyCost =
+            typeof num.monthlyCost === 'object' && num.monthlyCost !== null && 'toString' in num.monthlyCost
+              ? (num.monthlyCost as { toString: () => string }).toString()
+              : String(num.monthlyCost ?? '0');
+          return {
+            id: num.id,
+            phone_number: phoneNumber,
+            phone_number_id: num.telnyxNumberId ?? null,
+            phone_number_status,
+            phone_number_connection_id,
+            region_information:
+              (rawNumberDetails.region_information as unknown[]) ?? [],
+            features,
+            cost_information: {
+              monthly_cost: costInfo.monthly_cost ?? monthlyCost,
+              currency: costInfo.currency ?? 'USD',
+            },
+            status: 'active',
+            created_at: num.createdAt.toISOString(),
+            createdAt: num.createdAt.toISOString(),
+          };
+        }),
+      );
+      return { data: items };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Database error';
+      return { error: message };
+    }
   }
 
   async enableVoiceCall(
@@ -204,7 +234,8 @@ export class PhoneNumberService {
     phoneNumber: string,
   ): Promise<{ ok: boolean; error?: string }> {
     const connectionId = this.config.get<string>('TELNYX_CONNECTION_ID');
-    if (!connectionId) return { ok: false, error: 'TELNYX_CONNECTION_ID is not configured' };
+    if (!connectionId)
+      return { ok: false, error: 'TELNYX_CONNECTION_ID is not configured' };
 
     const client = this.telnyx.getClient();
     let resourceId: string;
@@ -215,28 +246,38 @@ export class PhoneNumberService {
       const list = page.data ?? [];
       if (list.length === 0) return { ok: false, error: 'Phone number not found' };
       resourceId = list[0].id;
-      if (!resourceId) return { ok: false, error: 'Phone number ID not found in response' };
+      if (!resourceId)
+        return { ok: false, error: 'Phone number ID not found in response' };
     } catch (err) {
       console.error('Enable voice call list error', err);
       return { ok: false, error: 'Phone number not found' };
     }
 
     try {
-      await client.phoneNumbers.update(resourceId, { connection_id: connectionId });
+      await client.phoneNumbers.update(resourceId, {
+        connection_id: connectionId,
+      });
     } catch (err) {
       console.error('Enable voice call error', err);
       return { ok: false, error: 'Error enabling voice call' };
     }
 
-    const db = this.client;
-    if (db) {
-      await db.from(NOTIFICATIONS_TABLE).insert({
-        user_id: userId,
-        type: 'number',
-        title: 'Voice call enabled',
-        message: `Voice call has been enabled for ${phoneNumber}`,
-        data: { phoneNumber, connectionId, phoneNumberResourceId: resourceId },
+    try {
+      await this.prisma.notification.create({
+        data: {
+          userId,
+          type: 'number',
+          title: 'Voice call enabled',
+          message: `Voice call has been enabled for ${phoneNumber}`,
+          data: {
+            phoneNumber,
+            connectionId,
+            phoneNumberResourceId: resourceId,
+          },
+        },
       });
+    } catch {
+      // non-fatal
     }
     return { ok: true };
   }
@@ -262,7 +303,8 @@ export class PhoneNumberService {
         };
       }
       resourceId = resource.id;
-      if (!resourceId) return { ok: false, error: 'Phone number ID not found in response' };
+      if (!resourceId)
+        return { ok: false, error: 'Phone number ID not found in response' };
     } catch (err) {
       console.error('Telnyx list number error', err);
       return { ok: false, error: 'Phone number not found' };
@@ -275,16 +317,21 @@ export class PhoneNumberService {
       return { ok: false, error: 'Error deleting phone number from Telnyx' };
     }
 
-    const db = this.client;
-    if (db) {
-      await db.from(PHONE_NUMBERS_TABLE).delete().eq('user_id', userId).eq('phone_number', phoneNumber);
-      await db.from(NOTIFICATIONS_TABLE).insert({
-        user_id: userId,
-        type: 'number',
-        title: 'Number deleted',
-        message: 'Phone number has been deleted',
-        data: { phoneNumber, phoneNumberResourceId: resourceId },
+    try {
+      await this.prisma.phoneNumber.deleteMany({
+        where: { userId, phoneNumber },
       });
+      await this.prisma.notification.create({
+        data: {
+          userId,
+          type: 'number',
+          title: 'Number deleted',
+          message: 'Phone number has been deleted',
+          data: { phoneNumber, phoneNumberResourceId: resourceId },
+        },
+      });
+    } catch {
+      // non-fatal
     }
     return { ok: true };
   }

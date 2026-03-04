@@ -6,92 +6,57 @@ import {
   INSTANCE_ID_METADATA_KEY,
 } from '../../constants/user.constants';
 import { getInstanceIdUuid } from '../../helpers/uuid.helper';
-import { SupabaseAdminService } from '../supabase/supabase-admin.service';
-import { User } from '@supabase/supabase-js';
+import type { ClerkProfile } from '../../helpers/clerk.helper';
+import { PrismaService } from '../../prisma/prisma.service';
 
 export { INSTANCE_ID_METADATA_KEY } from '../../constants/user.constants';
 
 @Injectable()
 export class UserService {
   constructor(
-    private readonly supabaseAdmin: SupabaseAdminService,
+    private readonly prisma: PrismaService,
     private readonly config: ConfigService,
   ) {}
 
-  /** Returns a UUID to store as instance_id in user metadata. */
+  /** Returns a UUID to store as instance_id in user record. */
   private getInstanceId(): string {
     const env = this.config.get<string>('INSTANCE_ID');
     return getInstanceIdUuid(env, DEFAULT_INSTANCE_ID_UUID);
   }
 
-  getClient() {
-    return this.supabaseAdmin.getClient();
-  }
-
-  /** Find auth.users row by clerk_id in user_metadata (used when id is Clerk id). */
-  private async findAuthUserIdByClerkId(clerkId: string): Promise<string | null> {
-    const client = this.supabaseAdmin.getClient();
-    if (!client) return null;
-    let page = 1;
-    const perPage = 100;
-    while (true) {
-      const { data, error } = await client.auth.admin.listUsers({ page, perPage });
-      if (error || !data?.users?.length) return null;
-      const match = data.users.find(
-        (u) => (u.user_metadata as Record<string, unknown>)?.[CLERK_ID_METADATA_KEY] === clerkId,
-      );
-      if (match) return match.id;
-      if (data.users.length < perPage) return null;
-      page += 1;
-    }
-  }
-
-  async upsertProfile(row: User): Promise<{ error: Error | null }> {
-    const client = this.supabaseAdmin.getClient();
-    if (!client) return { error: new Error('Supabase not configured') };
-
-    const r = row as User & { full_name?: string; avatar_url?: string; username?: string };
-    const clerkId = r.id;
-    const instanceIdUuid = this.getInstanceId();
-    const userMetadata: Record<string, unknown> = {
-      [CLERK_ID_METADATA_KEY]: clerkId,
-      [INSTANCE_ID_METADATA_KEY]: instanceIdUuid,
-      full_name: r.full_name ?? undefined,
-      avatar_url: r.avatar_url ?? undefined,
-      username: r.username ?? undefined,
-    };
-
-    const existingId = await this.findAuthUserIdByClerkId(clerkId);
-
-    if (existingId) {
-      const { error } = await client.auth.admin.updateUserById(existingId, {
-        email: r.email ?? undefined,
-        user_metadata: userMetadata,
+  async upsertUser(row: ClerkProfile): Promise<{ error: Error | null }> {
+    try {
+      const instanceIdUuid = this.getInstanceId();
+      await this.prisma.user.upsert({
+        where: { id: row.id },
+        create: {
+          id: row.id,
+          email: row.email ?? null,
+          username: row.username ?? null,
+          fullName: row.full_name ?? null,
+          avatarUrl: row.avatar_url ?? null,
+          instanceId: instanceIdUuid,
+        },
+        update: {
+          email: row.email ?? undefined,
+          username: row.username ?? undefined,
+          fullName: row.full_name ?? undefined,
+          avatarUrl: row.avatar_url ?? undefined,
+          instanceId: instanceIdUuid,
+        },
       });
-      return { error: error ?? null };
+      return { error: null };
+    } catch (err) {
+      return { error: err instanceof Error ? err : new Error(String(err)) };
     }
-
-    if (!r.email) {
-      return { error: new Error('Email required to create auth user') };
-    }
-    const { error } = await client.auth.admin.createUser({
-      email: r.email,
-      password: crypto.randomUUID(),
-      email_confirm: true,
-      user_metadata: userMetadata,
-    });
-    return { error: error ?? null };
   }
 
-  async deleteProfile(id: string): Promise<{ error: Error | null }> {
-    const client = this.supabaseAdmin.getClient();
-    if (!client) return { error: new Error('Supabase not configured') };
-
-    const authUserId = await this.findAuthUserIdByClerkId(id);
-    if (!authUserId) {
+  async deleteUser(clerkId: string): Promise<{ error: Error | null }> {
+    try {
+      await this.prisma.user.deleteMany({ where: { id: clerkId } });
       return { error: null };
+    } catch (err) {
+      return { error: err instanceof Error ? err : new Error(String(err)) };
     }
-    const { error } = await client.auth.admin.deleteUser(authUserId);
-    return { error: error ?? null };
   }
 }

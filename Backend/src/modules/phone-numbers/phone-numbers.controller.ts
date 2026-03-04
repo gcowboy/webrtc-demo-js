@@ -30,6 +30,7 @@ export class PhoneNumbersController {
   @Get('search')
   async searchNumbers(
     @Query('countryCode') countryCode: string | undefined,
+    @Query('areaCode') areaCode: string | undefined,
     @Query('features') features: string | string[] | undefined,
     @Query('type') type: string | undefined,
     @Query('limit') limit: string | undefined,
@@ -40,6 +41,7 @@ export class PhoneNumbersController {
     const limitNum = limit != null ? parseInt(limit, 10) : undefined;
     return this.phoneNumberService.searchNumbers({
       countryCode,
+      areaCode: areaCode?.trim() || undefined,
       features,
       type,
       limit: Number.isNaN(limitNum as number) ? undefined : limitNum,

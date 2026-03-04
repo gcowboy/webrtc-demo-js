@@ -3,7 +3,6 @@ import { Roboto } from 'next/font/google';
 import '@/app/globals.css';
 import { ClerkProvider } from '@clerk/nextjs';
 import { ThemeProvider } from '@/providers/ThemeProvider';
-import { SupabaseProvider } from '@/providers/SupabaseProvider';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/toaster';
 import { Toaster as SonnerToaster } from 'sonner';
@@ -38,9 +37,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={roboto.className}>
         {hasClerkPublishableKey ? (
-          <ClerkProvider>
-            <SupabaseProvider>{bodyContent}</SupabaseProvider>
-          </ClerkProvider>
+          <ClerkProvider>{bodyContent}</ClerkProvider>
         ) : (
           bodyContent
         )}

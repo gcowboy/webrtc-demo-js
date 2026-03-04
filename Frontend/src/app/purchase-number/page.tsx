@@ -56,7 +56,7 @@ export default function PurchaseNumberPage() {
     setSearching(true);
     setAvailableNumbers([]);
     try {
-      const params = new URLSearchParams({ countryCode: selectedCountry });
+      const params = new URLSearchParams({ countryCode: selectedCountry, areaCode: areaCode.trim() });
       if (areaCode.trim()) params.set('limit', '20');
       const res = await fetchNumbersApi(
         getToken,

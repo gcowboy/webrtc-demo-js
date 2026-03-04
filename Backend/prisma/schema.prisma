@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String   @id // Clerk user id
+  email      String?
+  username   String?
+  fullName   String?  @map("full_name")
+  avatarUrl  String?  @map("avatar_url")
+  instanceId String?  @map("instance_id") @db.Uuid
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  phoneNumbers  PhoneNumber[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model PhoneNumber {
+  id                String    @id @default(uuid())
+  userId            String    @map("user_id")
+  telnyxNumberId    String?   @map("telnyx_number_id")
+  phoneNumber      String    @map("phone_number")
+  countryCode      String    @default("") @map("country_code")
+  capabilities     Json      @default("[]")
+  monthlyCost      Decimal   @default(0) @map("monthly_cost") @db.Decimal(10, 2)
+  rawTelnyxData    Json?     @map("raw_telnyx_data")
+  rawNumberDetails Json?     @map("raw_number_details")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  type      String
+  title     String
+  message   String
+  data      Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

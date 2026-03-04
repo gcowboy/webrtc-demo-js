@@ -1,5 +1,14 @@
 import type { UserJSON } from '@clerk/types';
-import { User } from '@supabase/supabase-js';
+
+/** Profile shape used when syncing Clerk users to the database. */
+export interface ClerkProfile {
+  id: string;
+  email?: string;
+  username?: string;
+  full_name?: string;
+  avatar_url?: string;
+  updated_at: string;
+}
 
 export function getPrimaryEmail(
   emailAddresses: { id: string; email_address: string }[],
@@ -13,7 +22,7 @@ export function getPrimaryEmail(
   return emailAddresses[0]?.email_address ?? undefined;
 }
 
-export function mapClerkUserToProfile(data: UserJSON): User {
+export function mapClerkUserToProfile(data: UserJSON): ClerkProfile {
   const fullName = [data.first_name, data.last_name].filter(Boolean).join(' ') || null;
   return {
     id: data.id,
@@ -22,5 +31,5 @@ export function mapClerkUserToProfile(data: UserJSON): User {
     full_name: fullName ?? undefined,
     avatar_url: data.image_url ?? undefined,
     updated_at: new Date(data.updated_at).toISOString(),
-  } as unknown as User;
+  };
 }
