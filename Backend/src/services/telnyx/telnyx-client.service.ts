@@ -202,4 +202,28 @@ export class TelnyxClientService {
     });
     return result as { data: unknown };
   }
+
+  /**
+   * Unassigns a phone number from its connection (sets connection_id to null).
+   * Call this before deleting a credential connection that has numbers assigned.
+   */
+  async unassignPhoneNumberFromConnection(phoneNumberId: string): Promise<{ data: unknown }> {
+    const result = await this.client.phoneNumbers.update(phoneNumberId, {
+      connection_id: null as unknown as string,
+    });
+    return result as { data: unknown };
+  }
+
+  /**
+   * Lists phone number resource ids that are assigned to the given credential connection.
+   * Use before deleting a connection to unassign all numbers.
+   */
+  async listPhoneNumberIdsByConnectionId(connectionId: string): Promise<string[]> {
+    const page = await this.client.phoneNumbers.list({
+      filter: { connection_id: connectionId },
+      'page[size]': 100,
+    });
+    const data = page.data ?? [];
+    return data.map((n: { id?: string }) => n.id).filter((id): id is string => Boolean(id));
+  }
 }

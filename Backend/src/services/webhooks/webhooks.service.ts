@@ -69,6 +69,14 @@ export class WebhooksService {
       }
       if (telnyxConnectionId) {
         try {
+          const phoneNumberIds = await this.telnyx.listPhoneNumberIdsByConnectionId(telnyxConnectionId);
+          for (const phoneNumberId of phoneNumberIds) {
+            try {
+              await this.telnyx.unassignPhoneNumberFromConnection(phoneNumberId);
+            } catch (err) {
+              console.error('WebhooksService: unassign phone number failed', phoneNumberId, err);
+            }
+          }
           await this.telnyx.deleteSipConnection(telnyxConnectionId);
         } catch (err) {
           console.error('WebhooksService: delete SIP connection failed', err);
