@@ -1,15 +1,16 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@clerk/nextjs';
 import Link from 'next/link';
 import {
   fetchAdminApi,
+  getAdminTokenAsync,
   type AdminStats,
   type AdminUsersResponse,
   type AdminPhoneNumbersResponse,
   type AdminTransactionsResponse,
 } from '@/lib/admin-api';
+import { clearAdminToken } from '@/lib/admin-auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -19,7 +20,8 @@ import { toast } from 'sonner';
 const PAGE_SIZE = 20;
 
 export default function AdminPage() {
-  const { getToken, isSignedIn } = useAuth();
+  const getToken = getAdminTokenAsync;
+  const [hasToken, setHasToken] = useState<boolean | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -33,7 +35,13 @@ export default function AdminPage() {
   const [phoneNumbers, setPhoneNumbers] = useState<AdminPhoneNumbersResponse | null>(null);
   const [phoneSkip, setPhoneSkip] = useState(0);
   const [phoneUserId, setPhoneUserId] = useState('');
+  const [phoneUnassignedOnly, setPhoneUnassignedOnly] = useState(false);
   const [phoneLoading, setPhoneLoading] = useState(false);
+  const [assigningPhoneId, setAssigningPhoneId] = useState<string | null>(null);
+  const [assignUsers, setAssignUsers] = useState<AdminUsersResponse | null>(null);
+  const [assignSelectedUserId, setAssignSelectedUserId] = useState('');
+  const [assignUnassignLoading, setAssignUnassignLoading] = useState(false);
+  const [syncFromTelnyxLoading, setSyncFromTelnyxLoading] = useState(false);
 
   const [transactions, setTransactions] = useState<AdminTransactionsResponse | null>(null);
   const [txSkip, setTxSkip] = useState(0);
@@ -46,18 +54,28 @@ export default function AdminPage() {
     return () => clearTimeout(t);
   }, [usersSearch]);
   useEffect(() => setUsersSkip(0), [usersSearchDebounced]);
-  useEffect(() => setPhoneSkip(0), [phoneUserId]);
+  useEffect(() => setPhoneSkip(0), [phoneUserId, phoneUnassignedOnly]);
   useEffect(() => setTxSkip(0), [txUserId, txStatus]);
 
+  useEffect(() => {
+    getToken().then((t) => setHasToken(!!t));
+  }, []);
+
   const checkAccess = useCallback(async () => {
-    if (!getToken || !isSignedIn) {
+    const token = await getToken();
+    if (!token) {
       setAccessDenied(true);
       setLoading(false);
       return;
     }
     try {
       const res = await fetchAdminApi(getToken, '/admin/stats');
-      if (res.status === 403) {
+      if (res.status === 401) {
+        clearAdminToken();
+        setHasToken(false);
+        setAccessDenied(true);
+        setStats(null);
+      } else if (res.status === 403) {
         setAccessDenied(true);
         setStats(null);
       } else if (!res.ok) {
@@ -74,14 +92,19 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [getToken, isSignedIn]);
+  }, [getToken]);
 
   useEffect(() => {
+    if (hasToken === null) return;
+    if (!hasToken) {
+      setLoading(false);
+      return;
+    }
     checkAccess();
-  }, [checkAccess]);
+  }, [hasToken, checkAccess]);
 
   const loadUsers = useCallback(async () => {
-    if (!getToken) return;
+    if (!(await getToken())) return;
     setUsersLoading(true);
     try {
       const params = new URLSearchParams({
@@ -90,6 +113,13 @@ export default function AdminPage() {
       });
       if (usersSearchDebounced.trim()) params.set('search', usersSearchDebounced.trim());
       const res = await fetchAdminApi(getToken, `/admin/users?${params}`);
+      if (res.status === 401) {
+        clearAdminToken();
+        setHasToken(false);
+        setAccessDenied(true);
+        setUsers(null);
+        return;
+      }
       if (!res.ok) throw new Error(res.statusText);
       const data = await res.json();
       setUsers(data);
@@ -103,7 +133,7 @@ export default function AdminPage() {
   }, [getToken, usersSkip, usersSearchDebounced]);
 
   const loadPhoneNumbers = useCallback(async () => {
-    if (!getToken) return;
+    if (!(await getToken())) return;
     setPhoneLoading(true);
     try {
       const params = new URLSearchParams({
@@ -111,7 +141,15 @@ export default function AdminPage() {
         take: String(PAGE_SIZE),
       });
       if (phoneUserId.trim()) params.set('userId', phoneUserId.trim());
+      if (phoneUnassignedOnly) params.set('unassignedOnly', 'true');
       const res = await fetchAdminApi(getToken, `/admin/phone-numbers?${params}`);
+      if (res.status === 401) {
+        clearAdminToken();
+        setHasToken(false);
+        setAccessDenied(true);
+        setPhoneNumbers(null);
+        return;
+      }
       if (!res.ok) throw new Error(res.statusText);
       const data = await res.json();
       setPhoneNumbers(data);
@@ -122,10 +160,10 @@ export default function AdminPage() {
     } finally {
       setPhoneLoading(false);
     }
-  }, [getToken, phoneSkip, phoneUserId]);
+  }, [getToken, phoneSkip, phoneUserId, phoneUnassignedOnly]);
 
   const loadTransactions = useCallback(async () => {
-    if (!getToken) return;
+    if (!(await getToken())) return;
     setTxLoading(true);
     try {
       const params = new URLSearchParams({
@@ -135,6 +173,13 @@ export default function AdminPage() {
       if (txUserId.trim()) params.set('userId', txUserId.trim());
       if (txStatus.trim()) params.set('status', txStatus.trim());
       const res = await fetchAdminApi(getToken, `/admin/transactions?${params}`);
+      if (res.status === 401) {
+        clearAdminToken();
+        setHasToken(false);
+        setAccessDenied(true);
+        setTransactions(null);
+        return;
+      }
       if (!res.ok) throw new Error(res.statusText);
       const data = await res.json();
       setTransactions(data);
@@ -148,19 +193,138 @@ export default function AdminPage() {
   }, [getToken, txSkip, txUserId, txStatus]);
 
   useEffect(() => {
-    if (accessDenied || !getToken) return;
+    if (accessDenied || !hasToken) return;
     loadUsers();
-  }, [loadUsers, accessDenied, getToken]);
+  }, [loadUsers, accessDenied, hasToken]);
 
   useEffect(() => {
-    if (accessDenied || !getToken) return;
+    if (accessDenied || !hasToken) return;
     loadPhoneNumbers();
-  }, [loadPhoneNumbers, accessDenied, getToken]);
+  }, [loadPhoneNumbers, accessDenied, hasToken]);
 
   useEffect(() => {
-    if (accessDenied || !getToken) return;
+    if (accessDenied || !hasToken) return;
     loadTransactions();
-  }, [loadTransactions, accessDenied, getToken]);
+  }, [loadTransactions, accessDenied, hasToken]);
+
+  const loadUsersForAssign = useCallback(async () => {
+    if (!(await getToken())) return;
+    try {
+      const res = await fetchAdminApi(getToken, '/admin/users?skip=0&take=300');
+      if (res.status === 401) {
+        clearAdminToken();
+        setHasToken(false);
+        setAccessDenied(true);
+        return;
+      }
+      if (!res.ok) throw new Error(res.statusText);
+      const data = await res.json();
+      setAssignUsers(data);
+      if (data.data?.length && !assignSelectedUserId) {
+        setAssignSelectedUserId(data.data[0].id);
+      }
+    } catch (e) {
+      console.error('Failed to load users for assign', e);
+      toast.error('Failed to load users');
+    }
+  }, [getToken]);
+
+  const assignPhoneNumber = useCallback(
+    async (phoneId: string, userId: string) => {
+      if (!userId) {
+        toast.error('Select a user');
+        return;
+      }
+      setAssignUnassignLoading(true);
+      try {
+        const res = await fetchAdminApi(getToken, `/admin/phone-numbers/${phoneId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ action: 'assign', userId }),
+        });
+        if (res.status === 401) {
+          clearAdminToken();
+          setHasToken(false);
+          setAccessDenied(true);
+          return;
+        }
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast.error(err.message ?? 'Assign failed');
+          return;
+        }
+        toast.success('Number assigned');
+        setAssigningPhoneId(null);
+        loadPhoneNumbers();
+      } catch (e) {
+        console.error('Assign failed', e);
+        toast.error('Assign failed');
+      } finally {
+        setAssignUnassignLoading(false);
+      }
+    },
+    [getToken, loadPhoneNumbers],
+  );
+
+  const syncFromTelnyx = useCallback(async () => {
+    setSyncFromTelnyxLoading(true);
+    try {
+      const res = await fetchAdminApi(getToken, '/admin/phone-numbers/sync-from-telnyx', {
+        method: 'POST',
+      });
+      if (res.status === 401) {
+        clearAdminToken();
+        setHasToken(false);
+        setAccessDenied(true);
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? data.message ?? 'Sync failed');
+        return;
+      }
+      toast.success(
+        `Synced: ${data.total} total, ${data.created} created, ${data.updated} updated`,
+      );
+      loadPhoneNumbers();
+    } catch (e) {
+      console.error('Sync from Telnyx failed', e);
+      toast.error('Sync from Telnyx failed');
+    } finally {
+      setSyncFromTelnyxLoading(false);
+    }
+  }, [getToken, loadPhoneNumbers]);
+
+  const unassignPhoneNumber = useCallback(
+    async (phoneId: string) => {
+      if (!confirm('Unassign this number from the user?')) return;
+      setAssignUnassignLoading(true);
+      try {
+        const res = await fetchAdminApi(getToken, `/admin/phone-numbers/${phoneId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ action: 'unassign' }),
+        });
+        if (res.status === 401) {
+          clearAdminToken();
+          setHasToken(false);
+          setAccessDenied(true);
+          return;
+        }
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast.error(err.message ?? 'Unassign failed');
+          return;
+        }
+        toast.success('Number unassigned');
+        loadPhoneNumbers();
+      } catch (e) {
+        console.error('Unassign failed', e);
+        toast.error('Unassign failed');
+      } finally {
+        setAssignUnassignLoading(false);
+      }
+    },
+    [getToken, loadPhoneNumbers],
+  );
 
   if (loading) {
     return (
@@ -170,7 +334,7 @@ export default function AdminPage() {
     );
   }
 
-  if (!isSignedIn) {
+  if (hasToken === false) {
     return (
       <Card>
         <CardContent className="pt-6">
@@ -188,12 +352,15 @@ export default function AdminPage() {
     return (
       <Card>
         <CardContent className="pt-6">
-          <p className="font-medium text-[hsl(var(--destructive))]">Access denied.</p>
+          <p className="font-medium text-[hsl(var(--destructive))]">Access denied or session expired.</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Your account does not have admin access.
+            Please sign in again.
           </p>
+          <Link href="/sign-in" className="mt-3 inline-block text-[hsl(var(--primary))] hover:underline">
+            Sign in
+          </Link>
           {appUrl ? (
-            <a href={appUrl} className="mt-3 inline-block text-[hsl(var(--primary))] hover:underline">
+            <a href={appUrl} className="ml-4 inline-block text-sm text-muted-foreground hover:underline">
               Back to app
             </a>
           ) : null}
@@ -332,15 +499,31 @@ export default function AdminPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle>Phone numbers</CardTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Input
                 placeholder="Filter by user ID"
                 value={phoneUserId}
                 onChange={(e) => setPhoneUserId(e.target.value)}
                 className="max-w-xs"
               />
+              <label className="flex items-center gap-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={phoneUnassignedOnly}
+                  onChange={(e) => setPhoneUnassignedOnly(e.target.checked)}
+                  className="rounded border-[hsl(var(--border))]"
+                />
+                Unassigned only
+              </label>
               <Button variant="outline" size="sm" onClick={loadPhoneNumbers} disabled={phoneLoading}>
                 Refresh
+              </Button>
+              <Button
+                size="sm"
+                onClick={syncFromTelnyx}
+                disabled={syncFromTelnyxLoading}
+              >
+                {syncFromTelnyxLoading ? 'Syncing…' : 'Sync from Telnyx'}
               </Button>
             </div>
           </CardHeader>
@@ -358,6 +541,7 @@ export default function AdminPage() {
                         <th className="p-2 font-medium">User</th>
                         <th className="p-2 font-medium">Monthly cost</th>
                         <th className="p-2 font-medium">Created</th>
+                        <th className="p-2 font-medium">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -366,10 +550,73 @@ export default function AdminPage() {
                           <td className="p-2 font-mono">{p.phoneNumber}</td>
                           <td className="p-2">{p.countryCode || '—'}</td>
                           <td className="p-2">
-                            {p.user?.fullName ?? p.user?.email ?? p.userId.slice(0, 8) + '…'}
+                            {p.user
+                              ? p.user.fullName ?? p.user.email ?? (p.userId ? p.userId.slice(0, 8) + '…' : '—')
+                              : '—'}
                           </td>
                           <td className="p-2">{String(p.monthlyCost)}</td>
                           <td className="p-2 text-muted-foreground">{new Date(p.createdAt).toLocaleDateString()}</td>
+                          <td className="p-2">
+                            {assigningPhoneId === p.id ? (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <select
+                                  className="rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1 text-sm"
+                                  value={assignSelectedUserId}
+                                  onChange={(e) => setAssignSelectedUserId(e.target.value)}
+                                  disabled={assignUnassignLoading}
+                                >
+                                  {assignUsers?.data?.map((u) => (
+                                    <option key={u.id} value={u.id}>
+                                      {u.fullName ?? u.email ?? u.id.slice(0, 12)}
+                                    </option>
+                                  ))}
+                                </select>
+                                <Button
+                                  size="sm"
+                                  disabled={assignUnassignLoading}
+                                  onClick={() => assignPhoneNumber(p.id, assignSelectedUserId)}
+                                >
+                                  Confirm
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={assignUnassignLoading}
+                                  onClick={() => {
+                                    setAssigningPhoneId(null);
+                                    setAssignSelectedUserId('');
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex flex-wrap gap-1">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={assignUnassignLoading}
+                                  onClick={async () => {
+                                    setAssigningPhoneId(p.id);
+                                    if (!assignUsers) await loadUsersForAssign();
+                                    else setAssignSelectedUserId(assignUsers.data[0]?.id ?? '');
+                                  }}
+                                >
+                                  Assign
+                                </Button>
+                                {p.userId ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={assignUnassignLoading}
+                                    onClick={() => unassignPhoneNumber(p.id)}
+                                  >
+                                    Unassign
+                                  </Button>
+                                ) : null}
+                              </div>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

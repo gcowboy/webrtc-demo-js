@@ -111,7 +111,7 @@ export class WebhooksService {
       where: { phoneNumber: to.trim() },
       select: { userId: true },
     });
-    if (!number) return;
+    if (!number?.userId) return;
     const title = `SMS from ${from ?? 'unknown'}`;
     const message = text.slice(0, 500) || '(no text)';
     await this.prisma.notification.create({

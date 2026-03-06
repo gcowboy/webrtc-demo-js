@@ -215,6 +215,39 @@ export class TelnyxClientService {
   }
 
   /**
+   * Lists all phone numbers in the Telnyx account (paginated).
+   * Returns array of { id, phone_number, country_iso_alpha2?, ... } for each number.
+   */
+  async listAllPhoneNumbers(): Promise<
+    { id: string; phone_number: string; country_iso_alpha2?: string; [key: string]: unknown }[]
+  > {
+    const all: { id: string; phone_number: string; country_iso_alpha2?: string; [key: string]: unknown }[] = [];
+    let pageNumber = 1;
+    const pageSize = 100;
+    for (;;) {
+      const page = await this.client.phoneNumbers.list({
+        'page[size]': pageSize,
+        'page[number]': pageNumber,
+      } as { 'page[size]': number; 'page[number]'?: number });
+      const data = (page.data ?? []) as { id?: string; phone_number?: string; country_iso_alpha2?: string }[];
+      for (const n of data) {
+        if (n.id && n.phone_number) {
+          all.push({
+            id: n.id,
+            phone_number: n.phone_number,
+            country_iso_alpha2: n.country_iso_alpha2,
+            ...n,
+          });
+        }
+      }
+      if (data.length < pageSize) break;
+      pageNumber += 1;
+      if (pageNumber > 100) break;
+    }
+    return all;
+  }
+
+  /**
    * Lists phone number resource ids that are assigned to the given credential connection.
    * Use before deleting a connection to unassign all numbers.
    */

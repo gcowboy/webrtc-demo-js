@@ -7,6 +7,8 @@ export function getApiUrl(): string {
 
 export type GetToken = () => Promise<string | null>;
 
+export { getAdminTokenAsync } from './admin-auth';
+
 export async function fetchAdminApi(
   getToken: GetToken,
   path: string,
@@ -48,12 +50,12 @@ export type AdminUsersResponse = { data: AdminUserRow[]; total: number };
 
 export type AdminPhoneNumberRow = {
   id: string;
-  userId: string;
+  userId: string | null;
   phoneNumber: string;
   countryCode: string;
   monthlyCost: number | string;
   createdAt: string;
-  user: { id: string; email: string | null; fullName: string | null };
+  user: { id: string; email: string | null; fullName: string | null } | null;
 };
 
 export type AdminPhoneNumbersResponse = {

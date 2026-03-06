@@ -36,7 +36,7 @@ model User {
 
 model PhoneNumber {
   id                  String    @id @default(uuid())
-  userId              String    @map("user_id")
+  userId              String?   @map("user_id")
   subscriptionPlanId  String?   @map("subscription_plan_id")
   expiresAt           DateTime? @map("expires_at")
   telnyxNumberId      String?   @map("telnyx_number_id")
@@ -48,8 +48,8 @@ model PhoneNumber {
   rawNumberDetails    Json?     @map("raw_number_details")
   createdAt           DateTime  @default(now()) @map("created_at")
 
-  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plan    SubscriptionPlan? @relation(fields: [subscriptionPlanId], references: [id], onDelete: Restrict)
+  user    User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan    SubscriptionPlan?   @relation(fields: [subscriptionPlanId], references: [id], onDelete: Restrict)
 }
 
 model SubscriptionPlan {
