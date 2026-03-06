@@ -14,8 +14,9 @@ model User {
   fullName                    String?   @map("full_name")
   avatarUrl                   String?  @map("avatar_url")
   instanceId                  String?  @map("instance_id") @db.Uuid
-  telnyxCredentialConnectionId String? @map("telnyx_credential_connection_id")
-  updatedAt                   DateTime @updatedAt @map("updated_at")
+  telnyxCredentialConnectionId String?  @map("telnyx_credential_connection_id")
+  telnyxMessagingProfileId     String?  @map("telnyx_messaging_profile_id")
+  updatedAt                    DateTime @updatedAt @map("updated_at")
 
   // Account & balance
   accountType          String?   @map("account_type")
@@ -37,6 +38,7 @@ model PhoneNumber {
   id                  String    @id @default(uuid())
   userId              String    @map("user_id")
   subscriptionPlanId  String?   @map("subscription_plan_id")
+  expiresAt           DateTime? @map("expires_at")
   telnyxNumberId      String?   @map("telnyx_number_id")
   phoneNumber         String    @map("phone_number")
   countryCode         String    @default("") @map("country_code")

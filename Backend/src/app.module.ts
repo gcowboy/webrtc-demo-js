@@ -6,6 +6,8 @@ import { TelnyxModule } from './modules/telnyx/telnyx.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { TopUpModule } from './modules/top-up/top-up.module';
 import { SubscriptionModule } from './modules/subscription/subscription.module';
+import { MessagesModule } from './modules/messages/messages.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { SubscriptionModule } from './modules/subscription/subscription.module';
     WebhooksModule,
     TopUpModule,
     SubscriptionModule,
+    MessagesModule,
+    AdminModule,
   ],
 })
 export class AppModule {}

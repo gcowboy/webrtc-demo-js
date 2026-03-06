@@ -5,7 +5,7 @@ export default function SettingsPage() {
     <main className="settings-layout">
       <header className="settings-header">
         <h1>Settings</h1>
-        <Link className="panel-link" href="/">
+        <Link className="panel-link" href="/messages">
           Back to Messages
         </Link>
       </header>

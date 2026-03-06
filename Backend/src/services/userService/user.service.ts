@@ -60,11 +60,18 @@ export class UserService {
     }
   }
 
-  async findById(clerkId: string): Promise<{ id: string; telnyxCredentialConnectionId: string | null } | null> {
+  async findById(clerkId: string): Promise<{
+    id: string;
+    telnyxCredentialConnectionId: string | null;
+    telnyxMessagingProfileId: string | null;
+  } | null> {
     const user = await this.prisma.user.findUnique({
       where: { id: clerkId },
-      select: { id: true, telnyxCredentialConnectionId: true },
-    } as { where: { id: string }; select: { id: true; telnyxCredentialConnectionId: true } });
+      select: { id: true, telnyxCredentialConnectionId: true, telnyxMessagingProfileId: true },
+    } as {
+      where: { id: string };
+      select: { id: true; telnyxCredentialConnectionId: true; telnyxMessagingProfileId: true };
+    });
     return user;
   }
 
@@ -77,6 +84,21 @@ export class UserService {
         where: { id: clerkId },
         data: { telnyxCredentialConnectionId },
       } as { where: { id: string }; data: { telnyxCredentialConnectionId: string | null } });
+      return { error: null };
+    } catch (err) {
+      return { error: err instanceof Error ? err : new Error(String(err)) };
+    }
+  }
+
+  async updateMessagingProfileId(
+    clerkId: string,
+    telnyxMessagingProfileId: string | null,
+  ): Promise<{ error: Error | null }> {
+    try {
+      await this.prisma.user.update({
+        where: { id: clerkId },
+        data: { telnyxMessagingProfileId },
+      } as { where: { id: string }; data: { telnyxMessagingProfileId: string | null } });
       return { error: null };
     } catch (err) {
       return { error: err instanceof Error ? err : new Error(String(err)) };

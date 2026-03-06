@@ -11,6 +11,7 @@ import {
 import { Request } from 'express';
 import { verifyWebhook } from '@clerk/backend/webhooks';
 import { ConfigService } from '@nestjs/config';
+import type { TelnyxWebhookEnvelope } from '../../services/webhooks/webhooks.service';
 import { WebhooksService } from '../../services/webhooks/webhooks.service';
 
 @Controller('webhooks')
@@ -19,6 +20,27 @@ export class WebhooksController {
     private readonly config: ConfigService,
     private readonly webhooks: WebhooksService,
   ) {}
+
+  @Post('telnyx')
+  @HttpCode(HttpStatus.OK)
+  async telnyx(@Req() req: RawBodyRequest<Request>) {
+    const rawBody = req.rawBody;
+    if (!rawBody) {
+      throw new BadRequestException('Raw body required for webhook verification');
+    }
+    const signatureHeader = req.headers['x-telnyx-signature'] as string | undefined;
+    if (!this.webhooks.verifyTelnyxSignature(Buffer.from(rawBody), signatureHeader)) {
+      throw new BadRequestException('Invalid Telnyx signature');
+    }
+    let body: TelnyxWebhookEnvelope;
+    try {
+      body = JSON.parse(rawBody.toString('utf8')) as TelnyxWebhookEnvelope;
+    } catch {
+      throw new BadRequestException('Invalid JSON body');
+    }
+    await this.webhooks.handleTelnyxEvent(body);
+    return { received: true };
+  }
 
   @Post('clerk')
   @HttpCode(HttpStatus.OK)

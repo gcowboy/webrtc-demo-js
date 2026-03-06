@@ -226,4 +226,84 @@ export class TelnyxClientService {
     const data = page.data ?? [];
     return data.map((n: { id?: string }) => n.id).filter((id): id is string => Boolean(id));
   }
+
+  /**
+   * Creates a messaging profile for SMS/MMS. Use the returned id to assign phone numbers to it.
+   * @param name - User-friendly name (e.g. same as SIP connection name).
+   * @param whitelistedDestinations - Country codes or ['*'] for all. Defaults to ['*'].
+   */
+  async createMessagingProfile(
+    name: string,
+    whitelistedDestinations: string[] = ['*'],
+  ): Promise<{ data: { id?: string } }> {
+    const result = await this.client.messagingProfiles.create({
+      name,
+      whitelisted_destinations: whitelistedDestinations,
+    });
+    return result as { data: { id?: string } };
+  }
+
+  /**
+   * Assigns a phone number to a messaging profile (for SMS/MMS). Call after assigning the number to the SIP connection.
+   */
+  async assignPhoneNumberToMessagingProfile(
+    phoneNumberId: string,
+    messagingProfileId: string,
+  ): Promise<{ data: unknown }> {
+    const result = await this.client.phoneNumbers.messaging.update(phoneNumberId, {
+      messaging_profile_id: messagingProfileId,
+    });
+    return result as { data: unknown };
+  }
+
+  /**
+   * Unassigns a phone number from its messaging profile. Call before deleting a messaging profile.
+   */
+  async unassignPhoneNumberFromMessagingProfile(phoneNumberId: string): Promise<{ data: unknown }> {
+    const result = await this.client.phoneNumbers.messaging.update(phoneNumberId, {
+      messaging_profile_id: '',
+    });
+    return result as { data: unknown };
+  }
+
+  /**
+   * Lists phone number resource ids assigned to the given messaging profile.
+   */
+  async listPhoneNumberIdsByMessagingProfileId(profileId: string): Promise<string[]> {
+    const ids: string[] = [];
+    for await (const item of this.client.messagingProfiles.listPhoneNumbers(profileId, {
+      'page[size]': 100,
+    })) {
+      const id = (item as { id?: string }).id;
+      if (id) ids.push(id);
+    }
+    return ids;
+  }
+
+  /**
+   * Deletes a messaging profile. Unassign all numbers first (e.g. via unassignPhoneNumberFromMessagingProfile).
+   */
+  async deleteMessagingProfile(profileId: string): Promise<{ data: unknown }> {
+    const result = await this.client.messagingProfiles.delete(profileId);
+    return result as { data: unknown };
+  }
+
+  /**
+   * Sends an SMS from a long-code number (your Telnyx number) to a recipient.
+   * @param from - E.164 of your Telnyx number (must be assigned to a messaging profile).
+   * @param to - E.164 of the recipient.
+   * @param text - Message body.
+   */
+  async sendSms(
+    from: string,
+    to: string,
+    text: string,
+  ): Promise<{ data: { id?: string } }> {
+    const result = await this.client.messages.sendLongCode({
+      from: from.trim(),
+      to: to.trim(),
+      text: text.trim(),
+    });
+    return result as { data: { id?: string } };
+  }
 }

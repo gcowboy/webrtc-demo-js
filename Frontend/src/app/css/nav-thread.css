@@ -53,6 +53,19 @@
 .number-parent:hover { background: var(--gray-100); }
 .number-parent.active { background: #eef3fd; }
 .number-title { flex: 1; text-align: left; }
+.number-select {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  outline: none;
+}
+.number-select option { background: var(--surface); color: var(--text); }
 .number-caret { font-size: 12px; width: 12px; text-align: center; transition: transform var(--transition-fast); }
 .number-group[open] .number-caret { transform: rotate(90deg); }
 .number-group:not([open]) .number-children { display: none; }

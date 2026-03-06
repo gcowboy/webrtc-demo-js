@@ -154,11 +154,24 @@ export class PhoneNumberService {
       : undefined;
 
     const selectedPlanId = planId!.trim();
+    const plan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id: selectedPlanId },
+      select: { durationMonths: true },
+    });
+    const expiresAt = plan
+      ? (() => {
+          const d = new Date();
+          d.setMonth(d.getMonth() + plan.durationMonths);
+          return d;
+        })()
+      : undefined;
+
     try {
       const row = await this.prisma.phoneNumber.create({
         data: {
           userId,
           subscriptionPlanId: selectedPlanId,
+          expiresAt: expiresAt ?? undefined,
           telnyxNumberId: telnyxNumberId ?? null,
           phoneNumber,
           countryCode,
@@ -187,15 +200,16 @@ export class PhoneNumberService {
 
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
-        select: { id: true, telnyxCredentialConnectionId: true },
+        select: { id: true, telnyxCredentialConnectionId: true, telnyxMessagingProfileId: true },
       } as {
         where: { id: string };
-        select: { id: true; telnyxCredentialConnectionId: true };
+        select: { id: true; telnyxCredentialConnectionId: true; telnyxMessagingProfileId: true };
       });
-      if (user?.telnyxCredentialConnectionId) {
-        await this.assignPurchasedNumberToUserSipConnection(
+      if (user?.telnyxCredentialConnectionId || user?.telnyxMessagingProfileId) {
+        await this.assignPurchasedNumberToUserConnections(
           phoneNumber,
-          user.telnyxCredentialConnectionId,
+          user.telnyxCredentialConnectionId ?? undefined,
+          user.telnyxMessagingProfileId ?? undefined,
         );
       }
 
@@ -207,12 +221,14 @@ export class PhoneNumberService {
   }
 
   /**
-   * Looks up the phone number by E.164 in Telnyx, then assigns it to the user's SIP connection.
-   * Retries with delay because the number may not be in Telnyx's list immediately after order.
+   * Looks up the phone number by E.164 in Telnyx, then assigns it to the user's SIP connection
+   * and messaging profile (if provided). Retries with delay because the number may not be in
+   * Telnyx's list immediately after order.
    */
-  private async assignPurchasedNumberToUserSipConnection(
+  private async assignPurchasedNumberToUserConnections(
     phoneNumber: string,
-    credentialConnectionId: string,
+    credentialConnectionId?: string,
+    messagingProfileId?: string,
   ): Promise<void> {
     const maxAttempts = 3;
     const delayMs = 2500;
@@ -227,16 +243,24 @@ export class PhoneNumberService {
         const resource = list[0];
         const resourceId = resource?.id;
         if (resourceId) {
-          await this.telnyx.assignPhoneNumberToSipConnection(
-            resourceId,
-            credentialConnectionId,
-          );
+          if (credentialConnectionId) {
+            await this.telnyx.assignPhoneNumberToSipConnection(
+              resourceId,
+              credentialConnectionId,
+            );
+          }
+          if (messagingProfileId) {
+            await this.telnyx.assignPhoneNumberToMessagingProfile(
+              resourceId,
+              messagingProfileId,
+            );
+          }
           return;
         }
       } catch (err) {
         if (attempt === maxAttempts) {
-          console.error("Assign phone number to SIP connection failed", err);
-          throw new Error("Failed to assign phone number to SIP connection after multiple attempts");
+          console.error("Assign phone number to SIP/messaging failed", err);
+          throw new Error("Failed to assign phone number to SIP connection and messaging profile after multiple attempts");
         }
       }
       if (attempt < maxAttempts) {
