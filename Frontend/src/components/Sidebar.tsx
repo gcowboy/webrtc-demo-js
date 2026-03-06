@@ -51,7 +51,7 @@ const Sidebar = () => {
           <div className="number-group">
             <div className="number-parent">
               <span className="number-caret" aria-hidden>▸</span>
-              <span aria-hidden>☎</span>
+              <span className="number-icon" aria-hidden>☎</span>
               <span className="number-title">Loading…</span>
             </div>
           </div>
@@ -59,7 +59,7 @@ const Sidebar = () => {
           <div className="number-group">
             <div className="number-parent">
               <span className="number-caret" aria-hidden>▸</span>
-              <span aria-hidden>☎</span>
+              <span className="number-icon" aria-hidden>☎</span>
               <span className="number-title">No number</span>
             </div>
           </div>
@@ -80,7 +80,7 @@ const Sidebar = () => {
               >
                 <summary
                   className={`number-parent ${isSelected ? 'active' : ''}`}
-                  title="Messages, Calls, and Voicemail below are for this number"
+                  title={n.profile_name?.trim() ? `${n.profile_name.trim()} (${n.phone_number})` : n.phone_number}
                   onClick={(e) => {
                     e.preventDefault();
                     toggleExpanded(n.id);
@@ -88,8 +88,12 @@ const Sidebar = () => {
                   }}
                 >
                   <span className="number-caret" aria-hidden>▸</span>
-                  <span aria-hidden>☎</span>
-                  <span className="number-title">{n.phone_number}</span>
+                  <span className="number-icon" aria-hidden>☎</span>
+                  <span className="number-title">
+                    {n.profile_name?.trim()
+                      ? `${n.profile_name.trim()}(${n.phone_number})`
+                      : n.phone_number}
+                  </span>
                   <span className="status-pill">Active</span>
                 </summary>
                 <div className="number-children">

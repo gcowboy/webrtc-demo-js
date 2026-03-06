@@ -41,6 +41,7 @@ model PhoneNumber {
   expiresAt           DateTime? @map("expires_at")
   telnyxNumberId      String?   @map("telnyx_number_id")
   phoneNumber         String    @map("phone_number")
+  profileName         String?   @map("profile_name")
   countryCode         String    @default("") @map("country_code")
   capabilities        Json      @default("[]")
   monthlyCost         Decimal   @default(0) @map("monthly_cost") @db.Decimal(10, 2)

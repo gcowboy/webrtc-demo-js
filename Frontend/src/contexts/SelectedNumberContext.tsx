@@ -11,7 +11,7 @@ import {
 import { useAuth } from '@clerk/nextjs';
 import { fetchNumbersApi } from '@/lib/api';
 
-export type NumberItem = { phone_number: string; id: string };
+export type NumberItem = { phone_number: string; id: string; profile_name?: string | null };
 
 type ContextValue = {
   numbers: NumberItem[];
@@ -61,9 +61,10 @@ export function SelectedNumberProvider({ children }: { children: ReactNode }) {
       if (!res.ok) throw new Error(res.statusText);
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
-      const items: NumberItem[] = list.map((n: { phone_number?: string; id?: string }) => ({
+      const items: NumberItem[] = list.map((n: { phone_number?: string; id?: string; profile_name?: string | null }) => ({
         phone_number: n.phone_number ?? '',
         id: n.id ?? '',
+        profile_name: n.profile_name ?? null,
       }));
       setNumbers(items);
       if (items.length === 0) {

@@ -66,6 +66,7 @@ export class PhoneNumbersController {
       price: 1,
       monthlyPrice: body.monthlyCost ?? 2,
       planId: body.planId,
+      profileName: body.profileName ?? undefined,
     });
     if (result.error) {
       throw new BadRequestException(result.error);

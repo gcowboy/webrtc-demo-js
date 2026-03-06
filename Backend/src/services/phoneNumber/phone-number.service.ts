@@ -116,6 +116,7 @@ export class PhoneNumberService {
       price = 0,
       monthlyPrice = 0,
       planId,
+      profileName,
     } = input;
 
     if (!planId?.trim()) {
@@ -174,6 +175,7 @@ export class PhoneNumberService {
           expiresAt: expiresAt ?? undefined,
           telnyxNumberId: telnyxNumberId ?? null,
           phoneNumber,
+          profileName: profileName?.trim() || null,
           countryCode,
           capabilities: [],
           monthlyCost: monthlyPrice,
@@ -328,6 +330,7 @@ export class PhoneNumberService {
           return {
             id: num.id,
             phone_number: phoneNumber,
+            profile_name: num.profileName ?? null,
             phone_number_id: num.telnyxNumberId ?? null,
             phone_number_status,
             phone_number_connection_id,

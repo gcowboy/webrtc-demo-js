@@ -22,6 +22,8 @@ export interface OrderNumberInput {
   monthlyPrice: number;
   /** Subscription plan ID when ordering (e.g. basic | pro | business). Not set in search results. */
   planId?: string;
+  /** Display name for this number (e.g. "Ryan Smith"). */
+  profileName?: string | null;
 }
 
 /** Item returned from GET /numbers/search (available number to purchase). */
@@ -38,6 +40,7 @@ export interface AvailableNumberItem {
 export interface ListNumberItem {
   id: string;
   phone_number: string;
+  profile_name: string | null;
   phone_number_id: string | null;
   phone_number_status: string | null;
   phone_number_connection_id: string | null;
@@ -56,5 +59,7 @@ export interface OrderNumberRequestDto {
   monthlyCost?: number;
   /** Subscription plan ID for this number (e.g. basic | pro | business). Required. */
   planId: string;
+  /** Display name for this number (e.g. "Ryan Smith"). */
+  profileName?: string | null;
   rawNumberDetails?: Record<string, unknown> | null;
 }

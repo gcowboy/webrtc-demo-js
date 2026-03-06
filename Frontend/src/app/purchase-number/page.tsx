@@ -30,6 +30,7 @@ export default function PurchaseNumberPage() {
   const [searching, setSearching] = useState(false);
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [availableNumbers, setAvailableNumbers] = useState<OrderNumberInput[]>([]);
+  const [profileName, setProfileName] = useState('');
 
   const loadCountries = useCallback(async () => {
     if (!getToken) return;
@@ -117,6 +118,7 @@ export default function PurchaseNumberPage() {
           countryCode: selectedCountry,
           monthlyCost: item?.monthlyPrice,
           planId: selectedPlanId,
+          profileName: profileName.trim() || undefined,
           rawNumberDetails: item,
         }),
       });
@@ -149,6 +151,20 @@ export default function PurchaseNumberPage() {
           Choose a plan for the phone number. Your balance will be charged the plan&apos;s monthly price when you purchase.
         </p>
         <FormStack className="purchase-form">
+          <FormRow>
+            <FormControlField
+              label="Phone profile name"
+              htmlFor="profileName"
+            >
+              <FormControlInput
+                id="profileName"
+                placeholder="e.g. Ryan Smith"
+                value={profileName}
+                onChange={(e) => setProfileName(e.target.value)}
+                aria-label="Profile name for the phone number"
+              />
+            </FormControlField>
+          </FormRow>
           <FormRow>
             <FormControlField label="Plan" htmlFor="plan">
               <FormControlSelect
