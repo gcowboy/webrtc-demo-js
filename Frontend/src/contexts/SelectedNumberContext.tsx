@@ -23,6 +23,25 @@ type ContextValue = {
 
 const SelectedNumberContext = createContext<ContextValue | null>(null);
 
+const SELECTED_NUMBER_STORAGE_KEY = 'selected-phone-number';
+
+function readStoredNumber(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return sessionStorage.getItem(SELECTED_NUMBER_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredNumber(phoneNumber: string) {
+  try {
+    sessionStorage.setItem(SELECTED_NUMBER_STORAGE_KEY, phoneNumber);
+  } catch {
+    // ignore
+  }
+}
+
 export function SelectedNumberProvider({ children }: { children: ReactNode }) {
   const { getToken } = useAuth();
   const [numbers, setNumbers] = useState<NumberItem[]>([]);
@@ -62,12 +81,17 @@ export function SelectedNumberProvider({ children }: { children: ReactNode }) {
     load();
   }, [load]);
 
-  // When numbers list changes, keep selectedNumber in sync (e.g. after refresh or if selection was removed)
+  // When numbers list changes, restore from storage or keep selectedNumber in sync
   useEffect(() => {
     if (numbers.length === 0) return;
+    const stored = readStoredNumber();
+    const storedIsValid = stored && numbers.some((n) => n.phone_number === stored);
     setSelectedNumberState((current) => {
+      if (storedIsValid) return stored;
       if (!current || !numbers.some((n) => n.phone_number === current)) {
-        return numbers[0].phone_number;
+        const fallback = numbers[0].phone_number;
+        writeStoredNumber(fallback);
+        return fallback;
       }
       return current;
     });
@@ -75,6 +99,7 @@ export function SelectedNumberProvider({ children }: { children: ReactNode }) {
 
   const setSelectedNumber = useCallback((phoneNumber: string) => {
     setSelectedNumberState(phoneNumber);
+    writeStoredNumber(phoneNumber);
   }, []);
 
   const value: ContextValue = {
