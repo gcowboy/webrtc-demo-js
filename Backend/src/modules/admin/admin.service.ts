@@ -111,17 +111,40 @@ export class AdminService {
   async assignPhoneNumber(phoneNumberId: string, userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true },
+      select: {
+        id: true,
+        telnyxCredentialConnectionId: true,
+        telnyxMessagingProfileId: true,
+      },
     });
     if (!user) {
       throw new NotFoundException('User not found.');
     }
     const phone = await this.prisma.phoneNumber.findUnique({
       where: { id: phoneNumberId },
-      select: { id: true },
+      select: { id: true, telnyxNumberId: true },
     });
     if (!phone) {
       throw new NotFoundException('Phone number not found.');
+    }
+    if (phone.telnyxNumberId) {
+      try {
+        if (user.telnyxCredentialConnectionId) {
+          await this.telnyx.assignPhoneNumberToSipConnection(
+            phone.telnyxNumberId,
+            user.telnyxCredentialConnectionId,
+          );
+        }
+        if (user.telnyxMessagingProfileId) {
+          await this.telnyx.assignPhoneNumberToMessagingProfile(
+            phone.telnyxNumberId,
+            user.telnyxMessagingProfileId,
+          );
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        throw new BadRequestException(`Telnyx assign failed: ${message}`);
+      }
     }
     await this.prisma.phoneNumber.update({
       where: { id: phoneNumberId },
@@ -133,10 +156,20 @@ export class AdminService {
   async unassignPhoneNumber(phoneNumberId: string) {
     const phone = await this.prisma.phoneNumber.findUnique({
       where: { id: phoneNumberId },
-      select: { id: true },
+      select: { id: true, telnyxNumberId: true },
     });
     if (!phone) {
       throw new NotFoundException('Phone number not found.');
+    }
+    if (phone.telnyxNumberId) {
+      try {
+        await this.telnyx.unassignPhoneNumberFromConnection(phone.telnyxNumberId);
+        await this.telnyx.unassignPhoneNumberFromMessagingProfile(phone.telnyxNumberId);
+      } catch (err) {
+        // Still update DB so admin can unassign; Telnyx may already be unassigned or API may be temporarily down
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(`Telnyx unassign for ${phone.telnyxNumberId} failed: ${message}`);
+      }
     }
     await this.prisma.phoneNumber.update({
       where: { id: phoneNumberId },
