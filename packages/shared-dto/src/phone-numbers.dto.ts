@@ -20,6 +20,8 @@ export interface OrderNumberInput {
   countryCode?: string;
   price: number;
   monthlyPrice: number;
+  /** Subscription plan ID when ordering (e.g. basic | pro | business). Not set in search results. */
+  planId?: string;
 }
 
 /** Item returned from GET /numbers/search (available number to purchase). */
@@ -52,5 +54,7 @@ export interface OrderNumberRequestDto {
   phoneNumber: string;
   countryCode?: string;
   monthlyCost?: number;
+  /** Subscription plan ID for this number (e.g. basic | pro | business). Required. */
+  planId: string;
   rawNumberDetails?: Record<string, unknown> | null;
 }

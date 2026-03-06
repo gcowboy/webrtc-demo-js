@@ -16,12 +16,17 @@ import {
 import { fetchNumbersApi } from '@/lib/api';
 import { toast } from 'sonner';
 
+export type PlanItem = { id: string; name: string; priceMonthly: number; maxPhoneNumbers: number; durationMonths: number };
+
 export default function PurchaseNumberPage() {
   const { getToken } = useAuth();
   const [countries, setCountries] = useState<CountryItem[]>([]);
+  const [plans, setPlans] = useState<PlanItem[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string>('');
   const [selectedCountry, setSelectedCountry] = useState<string>('');
   const [areaCode, setAreaCode] = useState('');
   const [loadingCountries, setLoadingCountries] = useState(true);
+  const [loadingPlans, setLoadingPlans] = useState(true);
   const [searching, setSearching] = useState(false);
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [availableNumbers, setAvailableNumbers] = useState<OrderNumberInput[]>([]);
@@ -43,9 +48,31 @@ export default function PurchaseNumberPage() {
     }
   }, [getToken, selectedCountry]);
 
+  const loadPlans = useCallback(async () => {
+    if (!getToken) return;
+    setLoadingPlans(true);
+    try {
+      const res = await fetchNumbersApi(getToken, '/subscriptions/plans');
+      if (!res.ok) throw new Error(res.statusText);
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : [];
+      setPlans(list);
+      if (list.length && !selectedPlanId) setSelectedPlanId(list[0].id);
+    } catch (e) {
+      console.error('Failed to load plans', e);
+      toast.error('Failed to load subscription plans');
+    } finally {
+      setLoadingPlans(false);
+    }
+  }, [getToken, selectedPlanId]);
+
   useEffect(() => {
     loadCountries();
   }, [loadCountries]);
+
+  useEffect(() => {
+    loadPlans();
+  }, [loadPlans]);
 
   const handleSearch = async () => {
     console.log("handleSearch called with", { selectedCountry, areaCode });
@@ -77,6 +104,10 @@ export default function PurchaseNumberPage() {
   const handlePurchase = async (item: OrderNumberInput) => {
     const phoneNumber = item?.phoneNumber;
     if (!getToken || !phoneNumber) return;
+    if (!selectedPlanId) {
+      toast.error('Please select a subscription plan first');
+      return;
+    }
     setPurchasing(phoneNumber);
     try {
       const res = await fetchNumbersApi(getToken, '/numbers/order', {
@@ -85,6 +116,7 @@ export default function PurchaseNumberPage() {
           phoneNumber,
           countryCode: selectedCountry,
           monthlyCost: item?.monthlyPrice,
+          planId: selectedPlanId,
           rawNumberDetails: item,
         }),
       });
@@ -112,7 +144,30 @@ export default function PurchaseNumberPage() {
       </header>
 
       <section className="settings-card">
-        <h2>Select country and search</h2>
+        <h2>Subscription plan for new numbers</h2>
+        <p className="text-secondary" style={{ marginBottom: '1rem' }}>
+          Choose a plan for the phone number. Your balance will be charged the plan&apos;s monthly price when you purchase.
+        </p>
+        <FormStack className="purchase-form">
+          <FormRow>
+            <FormControlField label="Plan" htmlFor="plan">
+              <FormControlSelect
+                id="plan"
+                value={selectedPlanId}
+                onChange={(e) => setSelectedPlanId(e.target.value)}
+                disabled={loadingPlans}
+                aria-label="Select subscription plan"
+                placeholder={loadingPlans ? 'Loading…' : 'Select plan'}
+                options={plans.map((p) => ({
+                  value: p.id,
+                  label: `${p.name} — $${p.priceMonthly}/mo`,
+                }))}
+              />
+            </FormControlField>
+          </FormRow>
+        </FormStack>
+
+        <h2 style={{ marginTop: '1.5rem' }}>Select country and search</h2>
 
         <FormStack className="purchase-form">
           <FormRow>
@@ -192,7 +247,7 @@ export default function PurchaseNumberPage() {
                             size="sm"
                             className="number-card__purchase-btn"
                             onClick={() => handlePurchase(item)}
-                            disabled={isPurchasing}
+                            disabled={isPurchasing || !selectedPlanId || loadingPlans}
                           >
                             {isPurchasing ? 'Purchasing…' : 'Purchase'}
                           </Button>

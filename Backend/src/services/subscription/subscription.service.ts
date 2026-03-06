@@ -1,21 +1,37 @@
-import {
-  Injectable,
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+
+export type PlanSummary = {
+  id: string;
+  name: string;
+  priceMonthly: number;
+  maxPhoneNumbers: number;
+  durationMonths: number;
+};
+
+export type CanAddPhoneNumberResult =
+  | { allowed: true; planId: string; maxPhoneNumbers: number }
+  | { allowed: false; error: string };
+
+export type ConsumeBalanceResult =
+  | { ok: true; newBalance: number }
+  | { ok: false; error: string };
 
 @Injectable()
 export class SubscriptionService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listPlans(): Promise<
-    { id: string; name: string; priceMonthly: number; maxPhoneNumbers: number; durationMonths: number }[]
-  > {
-    const plans = await this.prisma.subscriptionPlan.findMany({
+  /** Use PrismaClient-typed access so subscription models are recognized (e.g. after prisma generate). */
+  private get db(): PrismaClient {
+    return this.prisma as unknown as PrismaClient;
+  }
+
+  async listPlans(): Promise<PlanSummary[]> {
+    const plans = await this.db.subscriptionPlan.findMany({
       orderBy: { maxPhoneNumbers: 'asc' },
     });
-    return plans.map((p) => ({
+    return plans.map((p: { id: string; name: string; priceMonthly: unknown; maxPhoneNumbers: number; durationMonths: number }) => ({
       id: p.id,
       name: p.name,
       priceMonthly: Number(p.priceMonthly),
@@ -25,96 +41,75 @@ export class SubscriptionService {
   }
 
   /**
-   * Get current active subscription for user (with plan details).
+   * Check whether the user can add a phone number with the given plan (plan exists and balance >= plan priceMonthly).
+   * Used when the user selects a plan for the number at purchase time.
    */
-  async getActiveSubscription(userId: string): Promise<{
-    planId: string;
-    planName: string;
-    maxPhoneNumbers: number;
-    endAt: string;
-  } | null> {
-    const now = new Date();
-    const sub = await this.prisma.userSubscription.findFirst({
-      where: { userId, endAt: { gte: now } },
-      orderBy: { endAt: 'desc' },
-      include: { plan: true },
+  async canAddPhoneNumberWithPlan(
+    userId: string,
+    planId: string,
+  ): Promise<CanAddPhoneNumberResult> {
+    const plan = await this.db.subscriptionPlan.findUnique({
+      where: { id: planId },
     });
-    if (!sub?.plan) return null;
+    if (!plan) {
+      return {
+        allowed: false,
+        error: `Plan "${planId}" not found. Choose a valid plan (e.g. basic, pro, business).`,
+      };
+    }
+    const requiredBalance = Number(plan.priceMonthly);
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { balance: true },
+    });
+    const balance = user?.balance != null ? Number(user.balance) : 0;
+    if (balance < requiredBalance) {
+      return {
+        allowed: false,
+        error: `Insufficient balance. Plan "${plan.name}" costs ${requiredBalance} USDC/month. Current balance: ${balance} USDC. Top up to add a phone number.`,
+      };
+    }
     return {
-      planId: sub.plan.id,
-      planName: sub.plan.name,
-      maxPhoneNumbers: sub.plan.maxPhoneNumbers,
-      endAt: sub.endAt.toISOString(),
+      allowed: true,
+      planId: plan.id,
+      maxPhoneNumbers: plan.maxPhoneNumbers,
     };
   }
 
   /**
-   * Create a new subscription for the user. Optionally deduct from balance (priceMonthly * durationMonths).
+   * Deduct the given plan's priceMonthly from the user's balance (when ordering a phone number with that plan).
+   * The plan is applied to the phone number, not to the user.
    */
-  async subscribe(
+  async consumeBalanceForPlan(
     userId: string,
     planId: string,
-    options?: { useBalance?: boolean },
-  ): Promise<{
-    subscriptionId: string;
-    planId: string;
-    endAt: string;
-  }> {
-    const plan = await this.prisma.subscriptionPlan.findUnique({
+  ): Promise<ConsumeBalanceResult> {
+    const plan = await this.db.subscriptionPlan.findUnique({
       where: { id: planId },
     });
     if (!plan) {
-      throw new NotFoundException('Plan not found');
+      return { ok: false, error: `Plan "${planId}" not found.` };
     }
-
-    const startAt = new Date();
-    const endAt = new Date(startAt);
-    endAt.setMonth(endAt.getMonth() + plan.durationMonths);
-
-    if (options?.useBalance) {
-      const total = Number(plan.priceMonthly) * plan.durationMonths;
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { balance: true },
-      });
-      if (!user) throw new NotFoundException('User not found');
-      const balance = Number(user.balance);
-      if (balance < total) {
-        throw new BadRequestException(
-          `Insufficient balance. Need ${total} USDC (${plan.priceMonthly} × ${plan.durationMonths} months).`,
-        );
-      }
-      const sub = await this.prisma.userSubscription.create({
-        data: {
-          userId,
-          planId: plan.id,
-          startAt,
-          endAt,
-        },
-      });
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: { balance: balance - total },
-      });
+    const amount = Number(plan.priceMonthly);
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { balance: true },
+    });
+    if (!user) {
+      return { ok: false, error: 'User not found.' };
+    }
+    const currentBalance = Number(user.balance);
+    if (currentBalance < amount) {
       return {
-        subscriptionId: sub.id,
-        planId: plan.id,
-        endAt: sub.endAt.toISOString(),
+        ok: false,
+        error: `Insufficient balance. Need ${amount} USDC (plan price). Current: ${currentBalance} USDC.`,
       };
     }
-
-    const sub = await this.prisma.userSubscription.create({
-      data: {
-        userId,
-        planId: plan.id,
-        startAt,
-        endAt,
-      },
+    const newBalance = currentBalance - amount;
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { balance: newBalance },
     });
-    return {
-      subscriptionId: sub.id,
-      planId: plan.id,
-      endAt: sub.endAt.toISOString(),
-    };
+    return { ok: true, newBalance };
   }
 }

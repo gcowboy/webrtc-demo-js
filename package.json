@@ -9,6 +9,7 @@
   "scripts": {
     "build": "npm run build --workspace=@nuropad/shared-dto && npm run build --workspaces --if-present",
     "build:dto": "npm run build --workspace=@nuropad/shared-dto",
+    "apply-db-and-build": "powershell -ExecutionPolicy Bypass -File ./scripts/apply-db-and-build.ps1",
     "start:dev": "npm run build:dto && concurrently -n backend,frontend \"npm run start:dev:backend\" \"npm run start:dev:frontend\"",
     "start:dev:backend": "npm run start:dev --workspace=nuropad-backend",
     "start:dev:frontend": "npm run dev --workspace=nuropad-frontend"

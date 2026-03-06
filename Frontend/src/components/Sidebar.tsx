@@ -46,10 +46,6 @@ const Sidebar = () => {
           <span>📨</span>
           <span className="nav-label">Spam</span>
         </Link>
-        <Link className={`nav-item ${pathname === '/subscription' ? 'active' : ''}`} href="/subscription">
-          <span>⭐</span>
-          <span className="nav-label">Subscription</span>
-        </Link>
         <Link className={`nav-item ${pathname === '/purchase-number' ? 'active' : ''}`} href="/purchase-number">
           <span>➕</span>
           <span className="nav-label">Buy Number</span>

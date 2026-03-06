@@ -29,24 +29,25 @@ model User {
   phoneNumbers       PhoneNumber[]
   notifications      Notification[]
   topUpTransactions  TopUpTransaction[]
-  userSubscriptions  UserSubscription[]
 
   @@map("users")
 }
 
 model PhoneNumber {
-  id                String    @id @default(uuid())
-  userId            String    @map("user_id")
-  telnyxNumberId    String?   @map("telnyx_number_id")
-  phoneNumber      String    @map("phone_number")
-  countryCode      String    @default("") @map("country_code")
-  capabilities     Json      @default("[]")
-  monthlyCost      Decimal   @default(0) @map("monthly_cost") @db.Decimal(10, 2)
-  rawTelnyxData    Json?     @map("raw_telnyx_data")
-  rawNumberDetails Json?     @map("raw_number_details")
-  createdAt        DateTime  @default(now()) @map("created_at")
+  id                  String    @id @default(uuid())
+  userId              String    @map("user_id")
+  subscriptionPlanId  String?   @map("subscription_plan_id")
+  telnyxNumberId      String?   @map("telnyx_number_id")
+  phoneNumber         String    @map("phone_number")
+  countryCode         String    @default("") @map("country_code")
+  capabilities        Json      @default("[]")
+  monthlyCost         Decimal   @default(0) @map("monthly_cost") @db.Decimal(10, 2)
+  rawTelnyxData       Json?     @map("raw_telnyx_data")
+  rawNumberDetails    Json?     @map("raw_number_details")
+  createdAt           DateTime  @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan    SubscriptionPlan? @relation(fields: [subscriptionPlanId], references: [id], onDelete: Restrict)
 }
 
 model SubscriptionPlan {
@@ -55,23 +56,9 @@ model SubscriptionPlan {
   priceMonthly     Decimal  @map("price_monthly") @db.Decimal(10, 2)
   maxPhoneNumbers  Int      @map("max_phone_numbers")
   durationMonths   Int      @map("duration_months")
-  userSubscriptions UserSubscription[]
+  phoneNumbers     PhoneNumber[]
 
   @@map("subscription_plans")
-}
-
-model UserSubscription {
-  id        String   @id @default(uuid())
-  userId    String   @map("user_id")
-  planId    String   @map("plan_id")
-  startAt   DateTime @map("start_at")
-  endAt     DateTime @map("end_at")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plan SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
-
-  @@map("user_subscriptions")
 }
 
 model Notification {

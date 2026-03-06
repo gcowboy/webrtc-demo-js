@@ -57,11 +57,15 @@ export class PhoneNumbersController {
     if (!body?.phoneNumber) {
       throw new BadRequestException('phoneNumber is required');
     }
+    if (!body?.planId) {
+      throw new BadRequestException('planId is required. Select a subscription plan for this number.');
+    }
     const result = await this.phoneNumberService.orderNumber(userId, {
       phoneNumber: body.phoneNumber,
       countryCode: body.countryCode,
       price: 1,
       monthlyPrice: body.monthlyCost ?? 2,
+      planId: body.planId,
     });
     if (result.error) {
       throw new BadRequestException(result.error);

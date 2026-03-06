@@ -9,6 +9,7 @@ import type {
 } from "@nuropad/shared-dto";
 import { FALLBACK_COUNTRIES } from "../../constants/phone-number.constants";
 import { PrismaService } from "../../prisma/prisma.service";
+import { SubscriptionService } from "../subscription/subscription.service";
 import { TelnyxClientService } from "../telnyx/telnyx-client.service";
 import {
   AvailablePhoneNumberListParams,
@@ -21,6 +22,7 @@ export class PhoneNumberService {
     private readonly telnyx: TelnyxClientService,
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly subscriptionService: SubscriptionService,
   ) {}
 
   async getCountries(): Promise<CountryItem[]> {
@@ -44,9 +46,12 @@ export class PhoneNumberService {
       if (items.length === 0) return FALLBACK_COUNTRIES;
       return items.sort((a, b) => a.name.localeCompare(b.name));
     } catch (err) {
+      const status = err instanceof APIError ? err.status : undefined;
+      const msg = err instanceof Error ? err.message : String(err);
       console.warn(
-        "Telnyx country coverage not available, using fallback list",
-        err,
+        "Telnyx country coverage not available, using fallback list.",
+        status != null ? `Telnyx status: ${status}.` : "",
+        msg,
       );
       return FALLBACK_COUNTRIES;
     }
@@ -101,27 +106,6 @@ export class PhoneNumberService {
     }
   }
 
-  /**
-   * Returns the user's active subscription with plan details, or null if none.
-   * Active = endAt >= now; takes the one with latest endAt.
-   */
-  private async getActiveSubscription(userId: string): Promise<{
-    plan: { id: string; maxPhoneNumbers: number };
-    subscription: { id: string; endAt: Date };
-  } | null> {
-    const now = new Date();
-    const sub = await this.prisma.userSubscription.findFirst({
-      where: { userId, endAt: { gte: now } },
-      orderBy: { endAt: "desc" },
-      include: { plan: true },
-    });
-    if (!sub?.plan) return null;
-    return {
-      plan: { id: sub.plan.id, maxPhoneNumbers: sub.plan.maxPhoneNumbers },
-      subscription: { id: sub.id, endAt: sub.endAt },
-    };
-  }
-
   async orderNumber(
     userId: string,
     input: OrderNumberInput,
@@ -131,7 +115,12 @@ export class PhoneNumberService {
       countryCode = "",
       price = 0,
       monthlyPrice = 0,
+      planId,
     } = input;
+
+    if (!planId?.trim()) {
+      return { error: "Plan is required. Select a subscription plan (e.g. basic, pro, business) for this number." };
+    }
 
     try {
       await this.prisma.user.upsert({
@@ -140,20 +129,10 @@ export class PhoneNumberService {
         update: {},
       });
 
-      const active = await this.getActiveSubscription(userId);
-      if (!active) {
-        return {
-          error:
-            "You need an active subscription to purchase phone numbers. Please subscribe to a plan first.",
-        };
-      }
-      const currentCount = await this.prisma.phoneNumber.count({
-        where: { userId },
-      });
-      if (currentCount >= active.plan.maxPhoneNumbers) {
-        return {
-          error: `Your ${active.plan.id} plan allows up to ${active.plan.maxPhoneNumbers} phone number(s). Upgrade your plan to add more.`,
-        };
+      const subscriptionCheck =
+        await this.subscriptionService.canAddPhoneNumberWithPlan(userId, planId.trim());
+      if (!subscriptionCheck.allowed) {
+        return { error: subscriptionCheck.error };
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Database error";
@@ -174,10 +153,12 @@ export class PhoneNumberService {
       ? orderData?.phone_numbers[0]?.id
       : undefined;
 
+    const selectedPlanId = planId!.trim();
     try {
       const row = await this.prisma.phoneNumber.create({
         data: {
           userId,
+          subscriptionPlanId: selectedPlanId,
           telnyxNumberId: telnyxNumberId ?? null,
           phoneNumber,
           countryCode,
@@ -186,6 +167,13 @@ export class PhoneNumberService {
           rawTelnyxData: orderData ?? undefined,
         },
       });
+
+      const consumeResult =
+        await this.subscriptionService.consumeBalanceForPlan(userId, selectedPlanId);
+      if (!consumeResult.ok) {
+        await this.prisma.phoneNumber.delete({ where: { id: row.id } });
+        return { error: consumeResult.error };
+      }
 
       await this.prisma.notification.create({
         data: {
