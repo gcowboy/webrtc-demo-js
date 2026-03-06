@@ -20,8 +20,9 @@ export function TurnServersFormField<
     <FormField
       {...props}
       rules={{
-        validate: (value) => {
-          if ((value?.username || value?.password) && !value?.urls?.trim()) {
+        validate: (value: unknown) => {
+          const v = value as { username?: string; password?: string; urls?: string } | undefined;
+          if ((v?.username || v?.password) && !v?.urls?.trim()) {
             return 'TURN Server URL is required when username or password is provided';
           }
           return true;

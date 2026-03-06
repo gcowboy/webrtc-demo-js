@@ -4,6 +4,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { PhoneNumbersModule } from './modules/phone-numbers/phone-numbers.module';
 import { TelnyxModule } from './modules/telnyx/telnyx.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { TopUpModule } from './modules/top-up/top-up.module';
+import { SubscriptionModule } from './modules/subscription/subscription.module';
 
 @Module({
   imports: [
@@ -12,6 +14,8 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     TelnyxModule,
     PhoneNumbersModule,
     WebhooksModule,
+    TopUpModule,
+    SubscriptionModule,
   ],
 })
 export class AppModule {}

@@ -59,3 +59,46 @@ export class ClerkAuthGuard implements CanActivate {
     }
   }
 }
+
+/**
+ * Same as ClerkAuthGuard but does not throw when token is missing or invalid.
+ * Sets request[CLERK_USER_ID_KEY] only when token is valid. Use for optional auth (e.g. admin-info).
+ */
+@Injectable()
+export class OptionalClerkAuthGuard implements CanActivate {
+  private readonly logger = new Logger(OptionalClerkAuthGuard.name);
+
+  constructor(private readonly config: ConfigService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const request = context.switchToHttp().getRequest<Request>();
+    const authHeader = request.headers.authorization;
+    const token = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : (request.cookies?.__session as string | undefined);
+
+    if (!token) return true;
+
+    const secretKey = this.config.get<string>('CLERK_SECRET_KEY');
+    if (!secretKey) return true;
+
+    const authorizedPartiesRaw = this.config.get<string>('CLERK_AUTHORIZED_PARTIES');
+    const authorizedParties = authorizedPartiesRaw
+      ? authorizedPartiesRaw.split(',').map((s) => s.trim()).filter(Boolean)
+      : undefined;
+
+    try {
+      const payload = await verifyToken(token, {
+        secretKey,
+        ...(authorizedParties?.length ? { authorizedParties } : {}),
+      });
+      const sub = (payload as { sub?: string })?.sub;
+      if (sub) {
+        (request as Request & { [CLERK_USER_ID_KEY]: string })[CLERK_USER_ID_KEY] = sub;
+      }
+    } catch {
+      // ignore invalid token for optional auth
+    }
+    return true;
+  }
+}

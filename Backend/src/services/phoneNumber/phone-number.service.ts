@@ -101,6 +101,27 @@ export class PhoneNumberService {
     }
   }
 
+  /**
+   * Returns the user's active subscription with plan details, or null if none.
+   * Active = endAt >= now; takes the one with latest endAt.
+   */
+  private async getActiveSubscription(userId: string): Promise<{
+    plan: { id: string; maxPhoneNumbers: number };
+    subscription: { id: string; endAt: Date };
+  } | null> {
+    const now = new Date();
+    const sub = await this.prisma.userSubscription.findFirst({
+      where: { userId, endAt: { gte: now } },
+      orderBy: { endAt: "desc" },
+      include: { plan: true },
+    });
+    if (!sub?.plan) return null;
+    return {
+      plan: { id: sub.plan.id, maxPhoneNumbers: sub.plan.maxPhoneNumbers },
+      subscription: { id: sub.id, endAt: sub.endAt },
+    };
+  }
+
   async orderNumber(
     userId: string,
     input: OrderNumberInput,
@@ -111,6 +132,34 @@ export class PhoneNumberService {
       price = 0,
       monthlyPrice = 0,
     } = input;
+
+    try {
+      await this.prisma.user.upsert({
+        where: { id: userId },
+        create: { id: userId },
+        update: {},
+      });
+
+      const active = await this.getActiveSubscription(userId);
+      if (!active) {
+        return {
+          error:
+            "You need an active subscription to purchase phone numbers. Please subscribe to a plan first.",
+        };
+      }
+      const currentCount = await this.prisma.phoneNumber.count({
+        where: { userId },
+      });
+      if (currentCount >= active.plan.maxPhoneNumbers) {
+        return {
+          error: `Your ${active.plan.id} plan allows up to ${active.plan.maxPhoneNumbers} phone number(s). Upgrade your plan to add more.`,
+        };
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Database error";
+      return { error: message };
+    }
+
     let orderData: { phone_numbers?: { id?: string }[] };
     try {
       const orderResult = await this.telnyx.getClient().numberOrders.create({
@@ -126,13 +175,6 @@ export class PhoneNumberService {
       : undefined;
 
     try {
-      // Ensure user exists (e.g. if webhook hasn't run yet)
-      await this.prisma.user.upsert({
-        where: { id: userId },
-        create: { id: userId },
-        update: {},
-      });
-
       const row = await this.prisma.phoneNumber.create({
         data: {
           userId,

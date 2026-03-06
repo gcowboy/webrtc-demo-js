@@ -8,7 +8,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { useForm } from 'react-hook-form';
+// react-hook-form published types reference missing ../src; use require so build passes
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { useForm } = require('react-hook-form') as { useForm: <T>(opts?: { defaultValues?: T }) => any };
 import {
   Form,
   FormControl,
@@ -222,7 +224,11 @@ const AiAgentView = () => {
                         <Input
                           data-testid="input-agent-id"
                           placeholder="assistant-xxx"
-                          {...field}
+                          value={String(field.value ?? '')}
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          name={field.name}
+                          ref={field.ref as React.Ref<HTMLInputElement>}
                         />
                       </FormControl>
                       <FormMessage />
@@ -237,7 +243,7 @@ const AiAgentView = () => {
                       <FormLabel>Widget Version</FormLabel>
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        defaultValue={field.value as string}
                         disabled={versionsLoading}
                       >
                         <FormControl>
@@ -279,7 +285,7 @@ const AiAgentView = () => {
                       <FormControl>
                         <Switch
                           data-testid="switch-trickle-ice"
-                          checked={field.value}
+                          checked={field.value as boolean}
                           onCheckedChange={field.onChange}
                         />
                       </FormControl>
