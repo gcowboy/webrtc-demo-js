@@ -18,24 +18,24 @@ export class MessagesService {
     private readonly telnyx: TelnyxClientService,
   ) {}
 
+  /**
+   * List messages from our DB (source of truth). Fast query by user_id.
+   */
   async listMessages(userId: string): Promise<{ data?: MessageItem[]; error?: string }> {
     try {
-      const notifications = await this.prisma.notification.findMany({
-        where: { userId, type: 'message' },
+      const rows = await this.prisma.message.findMany({
+        where: { userId },
         orderBy: { createdAt: 'desc' },
-        take: 200,
+        take: 500,
       });
-      const items: MessageItem[] = notifications.map((n) => {
-        const d = (n.data as { from?: string; to?: string; text?: string; direction?: string }) ?? {};
-        return {
-          id: n.id,
-          from: d.from ?? '',
-          to: d.to ?? '',
-          text: n.message ?? d.text ?? '',
-          direction: (d.direction as 'inbound' | 'outbound') ?? 'inbound',
-          createdAt: n.createdAt.toISOString(),
-        };
-      });
+      const items: MessageItem[] = rows.map((m) => ({
+        id: m.id,
+        from: m.fromNumber,
+        to: m.toNumber,
+        text: m.text,
+        direction: m.direction as 'inbound' | 'outbound',
+        createdAt: m.createdAt.toISOString(),
+      }));
       return { data: items };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Database error';
@@ -43,6 +43,9 @@ export class MessagesService {
     }
   }
 
+  /**
+   * Store message in DB (source of truth), then send via Telnyx (delivery).
+   */
   async sendMessage(
     userId: string,
     fromNumber: string,
@@ -66,24 +69,25 @@ export class MessagesService {
       return { error: 'The selected "from" number is not yours or was not found.' };
     }
     try {
-      const result = await this.telnyx.sendSms(trimmedFrom, trimmedTo, trimmedText);
-      const messageId = result.data?.id ?? '';
-      await this.prisma.notification.create({
+      const row = await this.prisma.message.create({
         data: {
           userId,
-          type: 'message',
-          title: `SMS to ${trimmedTo}`,
-          message: trimmedText.slice(0, 500),
-          data: {
-            from: trimmedFrom,
-            to: trimmedTo,
-            text: trimmedText,
-            direction: 'outbound',
-            smsId: messageId,
-          },
+          fromNumber: trimmedFrom,
+          toNumber: trimmedTo,
+          text: trimmedText,
+          direction: 'outbound',
+          media: [],
         },
       });
-      return { data: { id: messageId } };
+      const result = await this.telnyx.sendSms(trimmedFrom, trimmedTo, trimmedText);
+      const telnyxId = result.data?.id ?? null;
+      if (telnyxId) {
+        await this.prisma.message.update({
+          where: { id: row.id },
+          data: { telnyxMessageId: telnyxId },
+        });
+      }
+      return { data: { id: row.id } };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to send message';
       return { error: message };

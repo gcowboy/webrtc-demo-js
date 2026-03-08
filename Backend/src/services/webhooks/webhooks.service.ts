@@ -20,10 +20,11 @@ export interface TelnyxWebhookEnvelope {
   meta?: { attempt?: number; delivered_to?: string };
 }
 
-/** Payload for message.received (inbound SMS/MMS). */
+/** Payload for message.received (inbound SMS/MMS). Matches Telnyx webhook shape. */
 export interface TelnyxMessagePayload {
+  id?: string;
   from?: { phone_number?: string } | string;
-  to?: { phone_number?: string } | string;
+  to?: { phone_number?: string } | Array<{ phone_number?: string }>;
   text?: string;
   body?: string;
   type?: string;
@@ -97,32 +98,48 @@ export class WebhooksService {
   }
 
   private async handleMessageReceived(payload: TelnyxMessagePayload): Promise<void> {
-    const to =
-      typeof payload.to === 'string'
-        ? payload.to
-        : (payload.to as { phone_number?: string })?.phone_number;
-    const from =
-      typeof payload.from === 'string'
-        ? payload.from
-        : (payload.from as { phone_number?: string })?.phone_number;
-    const text = payload.text ?? payload.body ?? '';
-    if (!to?.trim()) return;
+    const to = this.normalizeTelnyxPhone(payload.to);
+    const from = this.normalizeTelnyxPhone(payload.from);
+    const text = (payload.text ?? payload.body ?? '').trim() || '';
+    if (!to) return;
     const number = await this.prisma.phoneNumber.findFirst({
-      where: { phoneNumber: to.trim() },
+      where: { phoneNumber: to },
       select: { userId: true },
     });
     if (!number?.userId) return;
-    const title = `SMS from ${from ?? 'unknown'}`;
-    const message = text.slice(0, 500) || '(no text)';
-    await this.prisma.notification.create({
+    const telnyxId = payload.id ?? payload.sms_id ?? null;
+    if (telnyxId) {
+      const existing = await this.prisma.message.findUnique({
+        where: { telnyxMessageId: telnyxId },
+        select: { id: true },
+      });
+      if (existing) return;
+    }
+    await this.prisma.message.create({
       data: {
         userId: number.userId,
-        type: 'message',
-        title,
-        message,
-        data: { from, to, text, smsId: payload.sms_id, direction: 'inbound' },
+        fromNumber: from ?? '',
+        toNumber: to,
+        text,
+        direction: 'inbound',
+        telnyxMessageId: telnyxId,
+        media: Array.isArray(payload.media) ? payload.media : [],
       },
     });
+  }
+
+  private normalizeTelnyxPhone(
+    value: string | { phone_number?: string } | Array<{ phone_number?: string }> | undefined,
+  ): string | null {
+    if (!value) return null;
+    if (typeof value === 'string') return value.trim() || null;
+    if (Array.isArray(value)) {
+      const first = value[0];
+      const num = first && typeof first === 'object' ? first.phone_number : undefined;
+      return (num && String(num).trim()) || null;
+    }
+    const num = (value as { phone_number?: string }).phone_number;
+    return (num && String(num).trim()) || null;
   }
 
   async handleClerkEvent(evt: WebhookEvent): Promise<{ ok: boolean; action?: string; error?: string }> {

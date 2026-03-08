@@ -14,13 +14,19 @@ import {
 } from '@nestjs/common';
 import type { OrderNumberRequestDto } from '@nuropad/shared-dto';
 import { PhoneNumberService } from '../../services/phoneNumber/phone-number.service';
+import { UserService } from '../../services/userService/user.service';
+import { TelnyxClientService } from '../../services/telnyx/telnyx-client.service';
 import { ClerkAuthGuard } from '../../common/clerk-auth.guard';
 import { CurrentUserId } from '../../common/current-user-id.decorator';
 
 @Controller('numbers')
 @UseGuards(ClerkAuthGuard)
 export class PhoneNumbersController {
-  constructor(private readonly phoneNumberService: PhoneNumberService) {}
+  constructor(
+    private readonly phoneNumberService: PhoneNumberService,
+    private readonly userService: UserService,
+    private readonly telnyx: TelnyxClientService,
+  ) {}
 
   @Get('countries')
   async getCountries() {
@@ -81,6 +87,20 @@ export class PhoneNumbersController {
       throw new BadRequestException(result.error);
     }
     return result.data ?? [];
+  }
+
+  @Get('webrtc-token')
+  async getWebRtcToken(@CurrentUserId() userId: string) {
+    const user = await this.userService.findById(userId);
+    if (!user?.telnyxCredentialConnectionId) {
+      throw new BadRequestException(
+        'No SIP credential connection for this user. Complete number setup first.',
+      );
+    }
+    const token = await this.telnyx.getSipConnectionToken(
+      user.telnyxCredentialConnectionId,
+    );
+    return { token };
   }
 
   @Patch('enable-voice')

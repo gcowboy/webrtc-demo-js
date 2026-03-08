@@ -100,7 +100,9 @@ const Sidebar = () => {
                   <Link
                     className={`nav-item child-item ${isMessages && isSelected ? 'active' : ''}`}
                     href="/messages"
-                    onClick={() => setSelectedNumber(n.phone_number)}
+                    onClick={() => {
+                      console.log('messages', n.phone_number);
+                    }}
                   >
                     <span aria-hidden>💬</span>
                     <span className="nav-label">Messages</span>

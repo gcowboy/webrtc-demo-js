@@ -30,6 +30,7 @@ model User {
   phoneNumbers       PhoneNumber[]
   notifications      Notification[]
   topUpTransactions  TopUpTransaction[]
+  messages          Message[]
 
   @@map("users")
 }
@@ -87,4 +88,20 @@ model TopUpTransaction {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("top_up_transactions")
+}
+
+model Message {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  fromNumber      String   @map("from_number")
+  toNumber        String   @map("to_number")
+  text            String   @db.Text
+  direction       String   // inbound | outbound
+  telnyxMessageId String?  @unique @map("telnyx_message_id")
+  media           Json?    @default("[]")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
 }

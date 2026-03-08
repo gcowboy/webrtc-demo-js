@@ -148,18 +148,62 @@ export class TelnyxClientService {
 
   /**
    * Gets a JWT token for a SIP credential connection. Use this token for WebRTC or client auth instead of sending username/password.
+   * Creates a short-lived telephony credential for the connection, then exchanges it for a token via Telnyx REST API.
    * @param credentialConnectionId - The credential connection id (e.g. from create response or user.telnyxCredentialConnectionId).
    * @returns The JWT token string.
    */
   async getSipConnectionToken(credentialConnectionId: string): Promise<string> {
-    const client = this.client as Telnyx & { telephonyCredentials?: { createToken: (id: string) => Promise<string | { data?: string }> } };
-    if (!client.telephonyCredentials?.createToken) {
-      throw new Error('Telnyx SDK telephonyCredentials.createToken not available');
+    const apiKey = this.config.get<string>('TELNYX_API_KEY');
+    if (!apiKey) throw new Error('TELNYX_API_KEY is not set');
+
+    const baseUrl = 'https://api.telnyx.com/v2';
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    };
+
+    // Create a telephony credential for this connection
+    const createRes = await fetch(`${baseUrl}/telephony_credentials`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ connection_id: credentialConnectionId }),
+    });
+    if (!createRes.ok) {
+      const errBody = await createRes.text();
+      throw new Error(
+        `Telnyx create telephony_credential failed: ${createRes.status} ${errBody}`,
+      );
     }
-    const response = await client.telephonyCredentials.createToken(credentialConnectionId);
-    const token = typeof response === 'string' ? response : (response as { data?: string })?.data ?? '';
-    if (!token) throw new Error('Telnyx returned an empty SIP connection token');
-    return token;
+    const createData = (await createRes.json()) as { data?: { id?: string } };
+    const credentialId = createData?.data?.id;
+    if (!credentialId) {
+      throw new Error('Telnyx telephony_credential response missing data.id');
+    }
+
+    // Create token for the telephony credential
+    const tokenRes = await fetch(
+      `${baseUrl}/telephony_credentials/${credentialId}/token`,
+      {
+        method: 'POST',
+        headers: { ...headers, Accept: 'text/plain' },
+      },
+    );
+    if (!tokenRes.ok) {
+      const errBody = await tokenRes.text();
+      throw new Error(
+        `Telnyx create token failed: ${tokenRes.status} ${errBody}`,
+      );
+    }
+    const contentType = tokenRes.headers.get('content-type') ?? '';
+    let token: string;
+    if (contentType.includes('application/json')) {
+      const json = (await tokenRes.json()) as { data?: string };
+      token = json?.data ?? '';
+    } else {
+      token = await tokenRes.text();
+    }
+    if (!token?.trim()) throw new Error('Telnyx returned an empty token');
+    return token.trim();
   }
 
   /**
